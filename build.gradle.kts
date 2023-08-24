@@ -8,7 +8,7 @@ dependencies {
     }
 
     implementation("org.openjdk.jmh:jmh-core:1.37")
-    testImplementation("org.junit.jupiter:junit-jupiter:5.10.0")
+    testImplementation("junit:junit:4.13.2")
 }
 
 java {
@@ -18,5 +18,5 @@ java {
 }
 
 tasks.test {
-    useJUnitPlatform()
+    useJUnit()
 }
