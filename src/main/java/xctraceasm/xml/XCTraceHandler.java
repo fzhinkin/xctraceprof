@@ -130,7 +130,9 @@ public class XCTraceHandler extends DefaultHandler {
                 } else {
                     Frame frame = new Frame(parseId(attributes));
                     frame.setName(parseName(attributes));
-                    frame.setAddress(parseAddress(attributes));
+                    // Addresses in cpu-* tables are always biased by 1, on both X86_64 and AArch64.
+                    // TODO: figure out why, because kdebug tables have correct addresses.
+                    frame.setAddress(parseAddress(attributes) - 1L);
                     entries.push(cache(frame));
                 }
                 break;
