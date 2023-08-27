@@ -59,11 +59,15 @@ public class XCTraceAsmProfiler extends AbstractPerfAsmProfiler {
         }
     }
 
+    public XCTraceAsmProfiler() throws ProfilerException {
+        this("");
+    }
+
     public XCTraceAsmProfiler(String initLine) throws ProfilerException {
-        super(initLine, "samples");
+        super(initLine, "sampled_pc");
 
         Collection<String> out = Utils.tryWith("sudo", "-n", "xctrace", "version");
-        if (out.size() != 1 || !out.iterator().next().startsWith("xctrace version")) {
+        if (!out.isEmpty()) {
             throw new ProfilerException(out.toString());
         }
         try {
@@ -90,8 +94,7 @@ public class XCTraceAsmProfiler extends AbstractPerfAsmProfiler {
     protected void parseEvents() {
         try (Stream<Path> files = Files.list(profilesDirectory)) {
             Path profile = files
-                    .filter(path -> path.getFileName().endsWith(".trace"))
-                    .limit(1)
+                    //.filter(path -> path.getFileName().startsWith("Launch"))
                     .collect(Collectors.toList()).get(0);
             ProcessBuilder pb = new ProcessBuilder("sudo", "-n", "xctrace", "export",
                     "--input", profile.toAbsolutePath().toString(),
@@ -106,6 +109,7 @@ public class XCTraceAsmProfiler extends AbstractPerfAsmProfiler {
 
     @Override
     public Collection<? extends Result> afterTrial(BenchmarkResult br, long pid, File stdOut, File stdErr) {
+        Collection<? extends Result> results = super.afterTrial(br, pid, stdOut, stdErr);
         try {
             Files.walkFileTree(profilesDirectory, new SimpleFileVisitor<Path>() {
                 @Override
@@ -124,7 +128,7 @@ public class XCTraceAsmProfiler extends AbstractPerfAsmProfiler {
             throw new IllegalStateException(e);
         }
 
-        return super.afterTrial(br, pid, stdOut, stdErr);
+        return results;
     }
 
     @Override
@@ -135,7 +139,8 @@ public class XCTraceAsmProfiler extends AbstractPerfAsmProfiler {
 
         double endTimeMs = skipMs + lenMs;
         XCTraceHandler handler = new XCTraceHandler(sample -> {
-            double sampleTimeMs = sample.getTimeFromStartNs() / 1e9;
+            // TODO: test
+            double sampleTimeMs = sample.getTimeFromStartNs() / 1e6;
             if (sampleTimeMs < skipMs || sampleTimeMs >= endTimeMs) {
                 return;
             }
@@ -158,11 +163,11 @@ public class XCTraceAsmProfiler extends AbstractPerfAsmProfiler {
                 MethodDesc method = dedup.dedup(MethodDesc.nativeMethod(frame.getName(), name));
 
                 methods.compute(method, (key, value) -> {
-                   if (value == null) {
-                       return new AddressInterval(frame.getAddress());
-                   }
-                   value.add(frame.getAddress());
-                   return value;
+                    if (value == null) {
+                        return new AddressInterval(frame.getAddress());
+                    }
+                    value.add(frame.getAddress());
+                    return value;
                 });
             }
         });
@@ -172,7 +177,7 @@ public class XCTraceAsmProfiler extends AbstractPerfAsmProfiler {
         } catch (ParserConfigurationException | SAXException | IOException e) {
             throw new IllegalStateException(e);
         }
-        if (handler.observedCpuProfileSchema()) {
+        if (!handler.observedCpuProfileSchema()) {
             throw new IllegalStateException("Parsed output does not contain cpu-profile table. " +
                     "Make sure you're using a template derived from the \"CPU Profiler\".");
         }

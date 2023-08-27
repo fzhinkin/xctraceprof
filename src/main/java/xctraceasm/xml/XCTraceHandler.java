@@ -41,7 +41,11 @@ public class XCTraceHandler extends DefaultHandler {
     private static long parseAddress(Attributes attributes) {
         String val = attributes.getValue("addr");
         if (!val.startsWith("0x")) throw new IllegalStateException("Unexpected addr formats: " + val);
-        return Long.parseLong(val.substring(2), 16);
+        try {
+            return Long.parseUnsignedLong(val.substring(2), 16);
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to parse " + val, e);
+        }
     }
 
     private static String parseName(Attributes attributes) {
