@@ -2,8 +2,6 @@ package xctraceasm.xml;
 
 import org.junit.Test;
 
-import javax.xml.parsers.SAXParserFactory;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -12,16 +10,8 @@ import java.util.stream.Collectors;
 
 import static org.junit.Assert.*;
 
-public class XCTraceHandlerTest {
-    private final SAXParserFactory factory = SAXParserFactory.newInstance();
+public class XCTraceHandlerTest extends XmlTestBase {
 
-    private static InputStream openProfile(String name) {
-        InputStream stream = XCTraceHandlerTest.class.getResourceAsStream("/" + name);
-        if (stream == null) {
-            throw new IllegalStateException("Resource not found: " + name);
-        }
-        return stream;
-    }
 
     @Test
     public void sanityTest() throws Exception {
@@ -30,7 +20,7 @@ public class XCTraceHandlerTest {
             count.incrementAndGet();
         });
 
-        factory.newSAXParser().parse(openProfile("cpu-profile.xml"), handler);
+        factory.newSAXParser().parse(openResource("cpu-profile.xml"), handler);
         assertTrue(handler.observedCpuProfileSchema());
         assertEquals(584, count.get());
     }
@@ -39,7 +29,7 @@ public class XCTraceHandlerTest {
     public void testSamples() throws Exception {
         List<Sample> samples = new ArrayList<>();
         XCTraceHandler handler = new XCTraceHandler(samples::add);
-        factory.newSAXParser().parse(openProfile("cpu-profile.xml"), handler);
+        factory.newSAXParser().parse(openResource("cpu-profile.xml"), handler);
         assertTrue(handler.observedCpuProfileSchema());
 
         Sample first = samples.get(1);
@@ -61,7 +51,7 @@ public class XCTraceHandlerTest {
     @Test
     public void unsupportedTraceType() throws Exception {
         XCTraceHandler handler = new XCTraceHandler(sample -> fail("Expected no samples"));
-        factory.newSAXParser().parse(openProfile("counters-profile.xml"), handler);
+        factory.newSAXParser().parse(openResource("counters-profile.xml"), handler);
         assertFalse(handler.observedCpuProfileSchema());
     }
 }
