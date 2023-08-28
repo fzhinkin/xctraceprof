@@ -10,10 +10,7 @@ import org.openjdk.jmh.results.BenchmarkResult;
 import org.openjdk.jmh.results.Result;
 import org.openjdk.jmh.util.*;
 import org.xml.sax.SAXException;
-import xctraceasm.xml.Binary;
-import xctraceasm.xml.Frame;
-import xctraceasm.xml.Sample;
-import xctraceasm.xml.XCTraceHandler;
+import xctraceasm.xml.*;
 
 import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.parsers.SAXParser;
@@ -138,7 +135,7 @@ public class XCTraceAsmProfiler extends AbstractPerfAsmProfiler {
         Multiset<Long> events = new TreeMultiset<>();
 
         double endTimeMs = skipMs + lenMs;
-        XCTraceHandler handler = new XCTraceHandler(sample -> {
+        XCTraceHandler handler = new XCTraceHandler(TableDesc.TableType.CPU_PROFILE, sample -> {
             // TODO: test
             double sampleTimeMs = sample.getTimeFromStartNs() / 1e6;
             if (sampleTimeMs < skipMs || sampleTimeMs >= endTimeMs) {

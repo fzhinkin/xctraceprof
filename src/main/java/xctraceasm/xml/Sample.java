@@ -4,10 +4,14 @@ import java.util.Collections;
 import java.util.List;
 
 public class Sample {
+    private static final long[] EMPTY = new long[0];
+
     private long timeFromStartNs = 0;
     private long weight = 0;
 
     private Backtrace backtrace = null;
+
+    private long[] samples = EMPTY;
 
     public void setBacktrace(Backtrace backtrace) {
         this.backtrace = backtrace;
@@ -34,4 +38,16 @@ public class Sample {
         return backtrace.frames();
     }
 
+    public long[] getSamples() {
+        return samples;
+    }
+
+    public void setSamples(long[] samples) {
+        this.samples = samples;
+    }
+
+    public long getAddress() {
+        if (backtrace == null || backtrace.frames().isEmpty()) return 0;
+        return backtrace.frames().get(0).getAddress();
+    }
 }

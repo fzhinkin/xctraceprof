@@ -3,14 +3,11 @@ package xctraceasm.xml;
 import org.xml.sax.Attributes;
 import org.xml.sax.helpers.DefaultHandler;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Stack;
+import java.util.*;
 import java.util.function.Consumer;
 
 public class XCTraceHandler extends DefaultHandler {
-    private static final String SCHEMA = "cpu-profile";
+    private final TableDesc.TableType tableType;
 
     private final Map<Long, TraceEntry> entriesCache = new HashMap<>();
 
@@ -29,6 +26,7 @@ public class XCTraceHandler extends DefaultHandler {
     private boolean withinNode = false;
 
     private boolean observedRequiredTable = false;
+
 
     private static long parseId(Attributes attributes) {
         return Long.parseLong(attributes.getValue("id"));
@@ -67,7 +65,8 @@ public class XCTraceHandler extends DefaultHandler {
         return entry;
     }
 
-    public XCTraceHandler(Consumer<Sample> onSample) {
+    public XCTraceHandler(TableDesc.TableType tableType, Consumer<Sample> onSample) {
+        this.tableType = tableType;
         callback = onSample;
     }
 
@@ -82,7 +81,8 @@ public class XCTraceHandler extends DefaultHandler {
             return;
         }
         if (withinNode && qName.equals("schema")) {
-            skipNodes = !parseName(attributes).equals(SCHEMA);
+            String schemaName = parseName(attributes);
+            skipNodes = !tableType.tableName.equals(schemaName);
             observedRequiredTable = observedRequiredTable || !skipNodes;
             return;
         }
@@ -101,6 +101,9 @@ public class XCTraceHandler extends DefaultHandler {
                 }
                 break;
             case TraceEntry.CYCLE_WEIGHT:
+            case TraceEntry.WEIGHT:
+            case TraceEntry.PMC_EVENT:
+                // TODO: validate only one of them is observed
                 if (has(attributes, "ref")) {
                     entries.push(getCached(parseRef(attributes)));
                 } else {
@@ -136,6 +139,15 @@ public class XCTraceHandler extends DefaultHandler {
                     entries.push(cache(frame));
                 }
                 break;
+            case TraceEntry.PMC_EVENTS:
+                if (has(attributes, "ref")) {
+                    entries.push(getCached(parseRef(attributes)));
+                } else {
+                    PmcEvents events = new PmcEvents(parseId(attributes));
+                    entries.push(cache(events));
+                    needParse = true;
+                }
+                break;
         }
     }
 
@@ -167,6 +179,8 @@ public class XCTraceHandler extends DefaultHandler {
                 needParse = false;
                 break;
             case TraceEntry.CYCLE_WEIGHT:
+            case TraceEntry.WEIGHT:
+            case TraceEntry.PMC_EVENT:
                 CycleWeight weight = (CycleWeight) entries.pop();
                 if (needParse) {
                     weight.setWeight(Long.parseLong(builder.toString()));
@@ -185,6 +199,15 @@ public class XCTraceHandler extends DefaultHandler {
             case TraceEntry.FRAME:
                 Frame frame = (Frame) entries.pop();
                 ((Backtrace) entries.peek()).addFrame(frame);
+                break;
+            case TraceEntry.PMC_EVENTS:
+                PmcEvents events = (PmcEvents) entries.pop();
+                if (needParse) {
+                    events.setCounters(Arrays.stream(builder.toString().split(" "))
+                            .mapToLong(Long::parseLong).toArray());
+                }
+                currentSample.setSamples(events.getCounters());
+                needParse = false;
                 break;
         }
     }
