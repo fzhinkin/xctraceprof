@@ -1,7 +1,6 @@
 package xctraceasm.xml;
 
 import org.xml.sax.Attributes;
-import org.xml.sax.SAXException;
 import org.xml.sax.helpers.DefaultHandler;
 
 import java.util.*;
@@ -9,9 +8,9 @@ import java.util.stream.Collectors;
 
 // TODO: validate the document
 public class TableOfContentsHandler extends DefaultHandler {
-    private final List<KdebugTableDesc> kdebugTables = new ArrayList<>();
+    private final List<TableDesc> kdebugTables = new ArrayList<>();
 
-    public List<KdebugTableDesc> getKdebugTables() {
+    public List<TableDesc> getKdebugTables() {
         return Collections.unmodifiableList(kdebugTables);
     }
 
@@ -22,9 +21,21 @@ public class TableOfContentsHandler extends DefaultHandler {
         }
 
         String schema = Objects.requireNonNull(attributes.getValue("schema"), "Schema not found");
-        if (schema.equals(KdebugTableDesc.TableType.PMI_SAMPLE.schemaName)) {
+        if (schema.equals(TableDesc.TableType.CPU_PROFILE.tableName)) {
+            kdebugTables.add(TableDesc.CPU_PROFILE);
+        }
+        if (schema.equals(TableDesc.TableType.COUNTERS_PROFILE.tableName)) {
+            parseCountersProfile(attributes);
+        }
+    }
+
+    private void parseCountersProfile(Attributes attributes) {
+        String trigger = Objects.requireNonNull(attributes.getValue("trigger"));
+        CountersProfileTableDesc.TriggerType triggerType = CountersProfileTableDesc.TriggerType.valueOf(trigger.toUpperCase());
+
+        if (triggerType == CountersProfileTableDesc.TriggerType.PMI) {
             parsePmiSampleTable(attributes);
-        } else if (schema.equals(KdebugTableDesc.TableType.TIME_SAMPLE.schemaName)) {
+        } else if (triggerType == CountersProfileTableDesc.TriggerType.TIME) {
             parseTimeSampleTable(attributes);
         }
     }
@@ -37,7 +48,7 @@ public class TableOfContentsHandler extends DefaultHandler {
         }
         long threshold = Long.parseLong(Objects.requireNonNull(attributes.getValue("pmi-threshold"),
                 "Trigger threshold not found"));
-        KdebugTableDesc table = new KdebugTableDesc(KdebugTableDesc.TableType.PMI_SAMPLE,
+        CountersProfileTableDesc table = new CountersProfileTableDesc(CountersProfileTableDesc.TriggerType.PMI,
                 parseEvents(attributes), pmiEvent, threshold);
         kdebugTables.add(table);
     }
@@ -45,7 +56,7 @@ public class TableOfContentsHandler extends DefaultHandler {
     private void parseTimeSampleTable(Attributes attributes) {
         long threshold = Long.parseLong(Objects.requireNonNull(attributes.getValue("sample-rate-micro-seconds"),
                 "Trigger threshold not found"));
-        KdebugTableDesc table = new KdebugTableDesc(KdebugTableDesc.TableType.TIME_SAMPLE,
+        CountersProfileTableDesc table = new CountersProfileTableDesc(CountersProfileTableDesc.TriggerType.TIME,
                 parseEvents(attributes), "TIME_MICRO_SEC", threshold);
         kdebugTables.add(table);
     }
