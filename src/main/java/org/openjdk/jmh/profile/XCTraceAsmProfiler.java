@@ -143,27 +143,25 @@ public class XCTraceAsmProfiler extends AbstractPerfAsmProfiler {
             }
 
             // TODO: always check only the add
-            if (sample.getBacktrace().isEmpty()) {
+            if (sample.getAddress() == 0L) {
                 return;
             }
-            Frame frame = sample.getBacktrace().get(0);
-            events.add(frame.getAddress());
+            events.add(sample.getAddress());
 
             // JIT sample
-            Binary binary = frame.getBinary();
-            if (binary != null) {
-                String name = binary.getName();
+            if (sample.getBinary() != null) {
+                String name = sample.getBinary();
                 if (name.isEmpty()) {
                     name = "[unknown]";
                     throw new IllegalStateException();
                 }
-                MethodDesc method = dedup.dedup(MethodDesc.nativeMethod(frame.getName(), name));
+                MethodDesc method = dedup.dedup(MethodDesc.nativeMethod(sample.getSymbol(), name));
 
                 methods.compute(method, (key, value) -> {
                     if (value == null) {
-                        return new AddressInterval(frame.getAddress());
+                        return new AddressInterval(sample.getAddress());
                     }
-                    value.add(frame.getAddress());
+                    value.add(sample.getAddress());
                     return value;
                 });
             }

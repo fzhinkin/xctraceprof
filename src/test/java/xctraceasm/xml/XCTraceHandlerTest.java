@@ -34,18 +34,15 @@ public class XCTraceHandlerTest extends XmlTestBase {
         assertEquals(465925290L, first.getTimeFromStartNs());
         assertEquals(414498L, first.getWeight());
         assertEquals(0, first.getSamples().length);
-        List<Frame> firstBacktrace = first.getBacktrace();
-        assertEquals(3, firstBacktrace.size());
-        assertEquals(0x1069dcf60L, firstBacktrace.get(0).getAddress());
-        assertEquals("a", firstBacktrace.get(0).getName());
-        assertEquals("a.out", firstBacktrace.get(0).getBinary().getName());
+        assertEquals(0x1069dcf60L, first.getAddress());
+        assertEquals("a", first.getSymbol());
+        assertEquals("a.out", first.getBinary());
 
         Sample next = samples.get(166);
         assertEquals(515200163L, next.getTimeFromStartNs());
         assertEquals(1000381L, next.getWeight());
         assertEquals(0, next.getSamples().length);
-        assertEquals(Arrays.asList("c", "b", "a"),
-                next.getBacktrace().stream().map(Frame::getName).limit(3).collect(Collectors.toList()));
+        assertEquals("c", next.getSymbol());
     }
 
     @Test
@@ -64,7 +61,7 @@ public class XCTraceHandlerTest extends XmlTestBase {
         assertEquals(205, samples.size());
         Sample first = samples.get(0);
         assertEquals(434050426L, first.getTimeFromStartNs());
-        assertEquals(0x10e403d73L, first.getBacktrace().get(0).getAddress());
+        assertEquals(0x10e403d73L, first.getAddress());
         assertEquals(1000000L, first.getWeight());
         assertArrayEquals(new long[] {40L, 4770L}, first.getSamples());
     }

@@ -33,11 +33,6 @@ public class Sample {
         return weight;
     }
 
-    public List<Frame> getBacktrace() {
-        if (backtrace == null) return Collections.emptyList();
-        return backtrace.frames();
-    }
-
     public long[] getSamples() {
         return samples;
     }
@@ -49,5 +44,15 @@ public class Sample {
     public long getAddress() {
         if (backtrace == null || backtrace.frames().isEmpty()) return 0;
         return backtrace.frames().get(0).getAddress();
+    }
+
+    public String getBinary() {
+        if (backtrace == null || backtrace.frames().isEmpty()) return null;
+        return backtrace.frames().get(0).getBinary().getName();
+    }
+
+    public String getSymbol() {
+        if (backtrace == null || backtrace.frames().isEmpty()) return null;
+        return backtrace.frames().get(0).getName();
     }
 }
