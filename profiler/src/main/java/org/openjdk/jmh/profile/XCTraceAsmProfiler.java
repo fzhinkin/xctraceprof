@@ -4,8 +4,6 @@ import joptsimple.OptionException;
 import joptsimple.OptionParser;
 import joptsimple.OptionSpec;
 import org.openjdk.jmh.infra.BenchmarkParams;
-import org.openjdk.jmh.profile.AbstractPerfAsmProfiler;
-import org.openjdk.jmh.profile.ProfilerException;
 import org.openjdk.jmh.results.BenchmarkResult;
 import org.openjdk.jmh.results.Result;
 import org.openjdk.jmh.util.*;
@@ -29,9 +27,12 @@ import java.util.stream.Stream;
 public class XCTraceAsmProfiler extends AbstractPerfAsmProfiler {
     private OptionSpec<String> templateOpt;
 
-    private final String template;
+    private OptionSpec<String> tableOpt;
 
-    private final Path profilesDirectory;
+    private final String template;
+    private final TableDesc.TableType tableType;
+
+    private TableDesc.TableType foundTable;
 
     private static class AddressInterval {
         private long min;
@@ -63,7 +64,7 @@ public class XCTraceAsmProfiler extends AbstractPerfAsmProfiler {
     public XCTraceAsmProfiler(String initLine) throws ProfilerException {
         super(initLine, "sampled_pc");
 
-        Collection<String> out = Utils.tryWith(/*"sudo", "-n",*/ "xctrace", "version");
+        Collection<String> out = Utils.tryWith("xctrace", "version");
         if (!out.isEmpty()) {
             throw new ProfilerException(out.toString());
         }
@@ -73,10 +74,15 @@ public class XCTraceAsmProfiler extends AbstractPerfAsmProfiler {
             throw new ProfilerException(e.getMessage());
         }
         try {
-            profilesDirectory = Files.createTempDirectory("xctrace-runs");
-        } catch (IOException e) {
-            throw new ProfilerException(e);
+            if (set.valueOf(tableOpt) == null) {
+                tableType = null;
+            } else {
+                tableType = TableDesc.TableType.valueOf(set.valueOf(tableOpt));
+            }
+        } catch (IllegalArgumentException e) {
+            throw new ProfilerException(e.getMessage());
         }
+        perfBinData.delete();
     }
 
     @Override
@@ -85,17 +91,59 @@ public class XCTraceAsmProfiler extends AbstractPerfAsmProfiler {
                         "Path to or name of an Instruments template. " +
                                 "Use `xctrace list templates` to view available templates.")
                 .withOptionalArg().ofType(String.class).defaultsTo("CPU Profiler");
+        tableOpt = parser.accepts("table", "Name of the output table.")
+                .withOptionalArg().ofType(String.class);
+    }
+
+    private Path getRunPath() {
+        try (Stream<Path> files = Files.list(perfBinData.file().toPath())) {
+            return files
+                    //.filter(path -> path.getFileName().startsWith("Launch"))
+                    .collect(Collectors.toList()).get(0);
+        } catch (IOException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    private TableDesc.TableType chooseTable(Path profile) {
+        try {
+            ProcessBuilder pb = new ProcessBuilder("xctrace", "export",
+                    "--input", profile.toAbsolutePath().toString(),
+                    "--toc",
+                    "--output", perfParsedData.getAbsolutePath());
+            Process process = pb.start();
+            process.waitFor();
+            TableOfContentsHandler handler = new TableOfContentsHandler();
+            SAXParserFactory.newInstance().newSAXParser().parse(perfParsedData.file(), handler);
+            List<TableDesc> tables = handler.getKdebugTables();
+            if (tables.isEmpty()) {
+                throw new IllegalStateException("Profiling results does not contain table supported by this profiler.");
+            }
+            if (tableType != null) {
+                return tables.stream()
+                        .filter(t -> t.getTableType() == tableType)
+                        .findFirst()
+                        .orElseThrow(() -> new IllegalStateException("Results table not found: " + tableType.tableName))
+                        .getTableType();
+            }
+            if (tables.size() != 1) {
+                throw new IllegalStateException("There are multiple supported tables in output, " +
+                        "please specify which one to use using \"table\" option");
+            }
+            return tables.get(0).getTableType();
+        } catch (IOException | InterruptedException | ParserConfigurationException | SAXException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     @Override
     protected void parseEvents() {
-        try (Stream<Path> files = Files.list(profilesDirectory)) {
-            Path profile = files
-                    //.filter(path -> path.getFileName().startsWith("Launch"))
-                    .collect(Collectors.toList()).get(0);
-            ProcessBuilder pb = new ProcessBuilder(/*"sudo", "-n", */"xctrace", "export",
+        Path profile = getRunPath();
+        foundTable = chooseTable(profile);
+        try {
+            ProcessBuilder pb = new ProcessBuilder("xctrace", "export",
                     "--input", profile.toAbsolutePath().toString(),
-                    "--xpath", "/trace-toc/run/data/table[@schema=\"cpu-profile\"]",
+                    "--xpath", "/trace-toc/run/data/table[@schema=\"" + foundTable.tableName + "\"]",
                     "--output", perfParsedData.getAbsolutePath());
             Process process = pb.start();
             process.waitFor();
@@ -105,10 +153,18 @@ public class XCTraceAsmProfiler extends AbstractPerfAsmProfiler {
     }
 
     @Override
+    public void beforeTrial(BenchmarkParams params) {
+        super.beforeTrial(params);
+        if (!perfBinData.file().isDirectory() && !perfBinData.file().mkdirs()) {
+            throw new IllegalStateException("Can't create folder " + perfBinData.getAbsolutePath());
+        }
+    }
+
+    @Override
     public Collection<? extends Result> afterTrial(BenchmarkResult br, long pid, File stdOut, File stdErr) {
         Collection<? extends Result> results = super.afterTrial(br, pid, stdOut, stdErr);
         try {
-            Files.walkFileTree(profilesDirectory, new SimpleFileVisitor<Path>() {
+            Files.walkFileTree(perfBinData.file().toPath(), new SimpleFileVisitor<Path>() {
                 @Override
                 public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
                     Files.delete(file);
@@ -135,7 +191,7 @@ public class XCTraceAsmProfiler extends AbstractPerfAsmProfiler {
         Multiset<Long> events = new TreeMultiset<>();
 
         double endTimeMs = skipMs + lenMs;
-        XCTraceHandler handler = new XCTraceHandler(TableDesc.TableType.CPU_PROFILE, sample -> {
+        XCTraceHandler handler = new XCTraceHandler(foundTable, sample -> {
             // TODO: test
             double sampleTimeMs = sample.getTimeFromStartNs() / 1e6;
             if (sampleTimeMs < skipMs || sampleTimeMs >= endTimeMs) {
@@ -196,8 +252,8 @@ public class XCTraceAsmProfiler extends AbstractPerfAsmProfiler {
     @Override
     public Collection<String> addJVMInvokeOptions(BenchmarkParams params) {
         return Arrays.asList(
-                /*"sudo", "-n", */"xctrace", "record", "--template", template,
-                "--target-stdout", "-", "--output", profilesDirectory.toAbsolutePath().toString(),
+                "xctrace", "record", "--template", template,
+                "--target-stdout", "-", "--output", perfBinData.getAbsolutePath(),
                 "--launch", "--"
         );
     }

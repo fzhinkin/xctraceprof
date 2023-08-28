@@ -7,11 +7,9 @@ import org.openjdk.jmh.runner.Runner;
 import org.openjdk.jmh.runner.options.Options;
 import org.openjdk.jmh.runner.options.OptionsBuilder;
 
-import java.sql.Time;
 import java.util.Collection;
-import java.util.concurrent.TimeUnit;
 
-@Fork(1)
+@Fork(2)
 @BenchmarkMode(Mode.Throughput)
 @Warmup(iterations = 2, time = 10)
 @Measurement(iterations = 1, time = 10)
@@ -29,8 +27,8 @@ public class SampleBenchmark {
                 .addProfiler(XCTraceAsmProfiler.class)
                 .build();
         Collection<RunResult> result = new Runner(opt).run();
-        if (result.isEmpty()) {
-            throw new IllegalStateException("Expected 1 result");
+        if (result.size() != 1) {
+            throw new IllegalStateException("Expected 1 result, got " + result.size());
         }
         // TODO: check output's hottest region is StubRoutines::libmLog
     }
