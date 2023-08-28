@@ -63,7 +63,7 @@ public class XCTraceAsmProfiler extends AbstractPerfAsmProfiler {
     public XCTraceAsmProfiler(String initLine) throws ProfilerException {
         super(initLine, "sampled_pc");
 
-        Collection<String> out = Utils.tryWith("sudo", "-n", "xctrace", "version");
+        Collection<String> out = Utils.tryWith(/*"sudo", "-n",*/ "xctrace", "version");
         if (!out.isEmpty()) {
             throw new ProfilerException(out.toString());
         }
@@ -93,7 +93,7 @@ public class XCTraceAsmProfiler extends AbstractPerfAsmProfiler {
             Path profile = files
                     //.filter(path -> path.getFileName().startsWith("Launch"))
                     .collect(Collectors.toList()).get(0);
-            ProcessBuilder pb = new ProcessBuilder("sudo", "-n", "xctrace", "export",
+            ProcessBuilder pb = new ProcessBuilder(/*"sudo", "-n", */"xctrace", "export",
                     "--input", profile.toAbsolutePath().toString(),
                     "--xpath", "/trace-toc/run/data/table[@schema=\"cpu-profile\"]",
                     "--output", perfParsedData.getAbsolutePath());
@@ -196,7 +196,7 @@ public class XCTraceAsmProfiler extends AbstractPerfAsmProfiler {
     @Override
     public Collection<String> addJVMInvokeOptions(BenchmarkParams params) {
         return Arrays.asList(
-                "sudo", "-n", "xctrace", "record", "--template", template,
+                /*"sudo", "-n", */"xctrace", "record", "--template", template,
                 "--target-stdout", "-", "--output", profilesDirectory.toAbsolutePath().toString(),
                 "--launch", "--"
         );

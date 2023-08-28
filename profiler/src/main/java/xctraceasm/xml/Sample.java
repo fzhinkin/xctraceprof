@@ -48,7 +48,9 @@ public class Sample {
 
     public String getBinary() {
         if (backtrace == null || backtrace.frames().isEmpty()) return null;
-        return backtrace.frames().get(0).getBinary().getName();
+        Binary bin = backtrace.frames().get(0).getBinary();
+        if (bin == null) return null;
+        return bin.getName();
     }
 
     public String getSymbol() {
