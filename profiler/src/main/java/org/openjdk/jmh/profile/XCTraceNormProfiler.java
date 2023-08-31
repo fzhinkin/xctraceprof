@@ -1,0 +1,235 @@
+package org.openjdk.jmh.profile;
+
+import jdk.nashorn.internal.runtime.ParserException;
+import joptsimple.OptionParser;
+import joptsimple.OptionSet;
+import joptsimple.OptionSpec;
+import org.openjdk.jmh.infra.BenchmarkParams;
+import org.openjdk.jmh.results.*;
+import org.openjdk.jmh.util.FileUtils;
+import org.openjdk.jmh.util.TempFile;
+import org.openjdk.jmh.util.Utils;
+import org.xml.sax.SAXException;
+import xctraceasm.xml.CountersProfileTableDesc;
+import xctraceasm.xml.TableDesc;
+import xctraceasm.xml.TableOfContentsHandler;
+import xctraceasm.xml.XCTraceHandler;
+
+import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.parsers.SAXParserFactory;
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.FileVisitResult;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+public class XCTraceNormProfiler implements ExternalProfiler {
+    private final String template;
+
+    private final Path temporaryFolder;
+
+    private final TempFile outputFile;
+
+    public XCTraceNormProfiler() throws ProfilerException {
+        this("CPU Counters");
+    }
+
+    public XCTraceNormProfiler(String initLine) throws ProfilerException {
+        OptionParser parser = new OptionParser();
+        parser.formatHelpWith(new ProfilerOptionFormatter(XCTraceNormProfiler.class.getName()));
+
+        OptionSpec<String> templateOpt = parser.accepts("template",
+                        "Name of or path to Instruments template. " +
+                                "Only templates with \"CPU Counters\" instrument are supported at the moment.")
+                .withRequiredArg().ofType(String.class);
+
+        OptionSet options = ProfilerUtils.parseInitLine(initLine, parser);
+        template = options.valueOf(templateOpt);
+
+        Collection<String> out = Utils.tryWith("xctrace", "version");
+        if (!out.isEmpty()) {
+            throw new ProfilerException(out.toString());
+        }
+
+        // TODO: check template exists
+
+        try {
+            temporaryFolder = Files.createTempDirectory("xctrace-run");
+            outputFile = FileUtils.weakTempFile("xctrace-out.xml");
+        } catch (IOException e) {
+            throw new ProfilerException(e.getMessage());
+        }
+    }
+
+    @Override
+    public Collection<String> addJVMInvokeOptions(BenchmarkParams params) {
+        return Arrays.asList(
+                "xctrace", "record", "--template", template,
+                "--output", temporaryFolder.toAbsolutePath().toString(),
+                "--target-stdout", "-",
+                "--launch", "--"
+        );
+    }
+
+    @Override
+    public Collection<String> addJVMOptions(BenchmarkParams params) {
+        return Collections.emptyList();
+    }
+
+    @Override
+    public void beforeTrial(BenchmarkParams benchmarkParams) {
+        if (!temporaryFolder.toFile().isDirectory() && !temporaryFolder.toFile().mkdirs()) {
+            throw new IllegalStateException();
+        }
+    }
+
+    private Path getRunPath() {
+        try (Stream<Path> files = Files.list(temporaryFolder)) {
+            return files
+                    //.filter(path -> path.getFileName().startsWith("Launch"))
+                    .collect(Collectors.toList()).get(0);
+        } catch (IOException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    @Override
+    public Collection<? extends Result> afterTrial(BenchmarkResult br, long pid, File stdOut, File stdErr) {
+        TableDesc.TableType table = TableDesc.TableType.COUNTERS_PROFILE;
+        Path traceFile = getRunPath();
+        Collection<String> out = Utils.tryWith(
+                "xctrace", "export",
+                "--input", traceFile.toAbsolutePath().toString(),
+                "--output", outputFile.getAbsolutePath(),
+                "--toc"
+        );
+        if (!out.isEmpty()) {
+            throw new IllegalStateException(out.toString());
+        }
+        TableOfContentsHandler tocHandler = new TableOfContentsHandler();
+        try {
+            SAXParserFactory.newInstance().newSAXParser().parse(outputFile.file(), tocHandler);
+        } catch (ParserConfigurationException | SAXException | IOException e) {
+            throw new IllegalStateException(e);
+        }
+        CountersProfileTableDesc tableDesc = (CountersProfileTableDesc) tocHandler.getKdebugTables()
+                .stream()
+                .filter(t -> t.getTableType() == table)
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("Table \"" + table.tableName +
+                        "\" was not found in the trace results."));
+        if (tableDesc.counters().isEmpty() && tableDesc.getTriggerType() == CountersProfileTableDesc.TriggerType.TIME) {
+            throw new IllegalStateException("Results does not contain any events.");
+        }
+        out = Utils.tryWith(
+                "xctrace", "export",
+                "--input", traceFile.toAbsolutePath().toString(),
+                "--output", outputFile.getAbsolutePath(),
+                "--xpath",
+                "/trace-toc/run/data/table[@schema=\"" + table.tableName + "\"]"
+        );
+        if (!out.isEmpty()) {
+            throw new IllegalStateException(out.toString());
+        }
+
+        BenchmarkResultMetaData md = br.getMetadata();
+        if (md == null) {
+            throw new UnsupportedOperationException();
+        }
+        long driftMs = tocHandler.getRecordStartMs() - md.getStartTime();
+        long skipNs = (ProfilerUtils.measurementDelayMs(br) - driftMs) * 1000000;
+        long durationNs = ProfilerUtils.measuredTimeMs(br) * 1000000;
+
+        double[] aggregatedEvents = new double[tableDesc.counters().size() + 1];
+        long[] duration = new long[] { Long.MAX_VALUE, Long.MIN_VALUE };
+        long[] samplesCount = new long[1];
+        XCTraceHandler handler = new XCTraceHandler(table, sample -> {
+            if (sample.getTimeFromStartNs() <= skipNs || sample.getTimeFromStartNs() > skipNs + durationNs) {
+                return;
+            }
+
+            long[] counters = sample.getSamples();
+            for (int i = 0; i < counters.length; i++) {
+                aggregatedEvents[i] += counters[i];
+            }
+            aggregatedEvents[aggregatedEvents.length - 1] = sample.getWeight();
+            duration[0] = Math.min(duration[0], sample.getTimeFromStartNs());
+            duration[1] = Math.max(duration[1], sample.getTimeFromStartNs());
+            samplesCount[0]++;
+        });
+        try {
+            SAXParserFactory.newInstance().newSAXParser().parse(outputFile.file(), handler);
+            removeDir(temporaryFolder);
+        } catch (ParserConfigurationException | SAXException | IOException e) {
+            throw new IllegalStateException(e);
+        }
+        if (!handler.observedCpuProfileSchema()) {
+            throw new IllegalStateException("Table with samples was not found");
+        }
+
+        long timeMs = md.getStopTime() - md.getMeasurementTime();
+        if (timeMs == 0L) {
+            throw new UnsupportedOperationException();
+        }
+
+        double timeSpanMs = (duration[1] - duration[0]) / 1e6;
+        // TODO: validate timeSpan
+        double opsThroughput = md.getMeasurementOps() / (double) timeMs;
+        for (int i = 0; i < aggregatedEvents.length; i++) {
+            aggregatedEvents[i] = aggregatedEvents[i] / timeSpanMs / opsThroughput;
+        }
+
+        Collection<Result<?>> results = new ArrayList<>();
+        for (int i = 0; i < tableDesc.counters().size(); i++) {
+            String event = tableDesc.counters().get(i);
+            results.add(new ScalarResult(event, aggregatedEvents[i],
+                    "#/op", AggregationPolicy.AVG));
+        }
+        if (tableDesc.getTriggerType() == CountersProfileTableDesc.TriggerType.PMI) {
+            results.add(new ScalarResult(tableDesc.triggerEvent(),
+                    aggregatedEvents[aggregatedEvents.length - 1],
+                    "#/op", AggregationPolicy.AVG));
+        }
+        results.add(new ScalarResult("TOTAL_SAMPLES", samplesCount[0], "#", AggregationPolicy.SUM));
+        return results;
+    }
+
+    @Override
+    public boolean allowPrintOut() {
+        return true;
+    }
+
+    @Override
+    public boolean allowPrintErr() {
+        return false;
+    }
+
+    @Override
+    public String getDescription() {
+        return "XCTrace PMU counters statistics, normalized by operation count";
+    }
+
+    private static void removeDir(Path path) throws IOException {
+        Files.walkFileTree(path, new SimpleFileVisitor<Path>() {
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                Files.delete(file);
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
+                Files.delete(dir);
+                return FileVisitResult.CONTINUE;
+            }
+        });
+    }
+}
