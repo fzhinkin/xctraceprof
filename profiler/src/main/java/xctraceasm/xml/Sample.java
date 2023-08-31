@@ -1,28 +1,27 @@
 package xctraceasm.xml;
 
-import java.util.Collections;
-import java.util.List;
-
 public class Sample {
     private static final long[] EMPTY = new long[0];
 
     private long timeFromStartNs = 0;
     private long weight = 0;
 
-    private Backtrace backtrace = null;
+    private Frame topFrame = null;
 
     private long[] samples = EMPTY;
 
     public void setBacktrace(Backtrace backtrace) {
-        this.backtrace = backtrace;
+        if (!backtrace.isEmpty()) {
+            this.topFrame = backtrace.getTopFrame();
+        }
     }
 
-    public void setWeight(CycleWeight weight) {
-        this.weight = weight.getWeight();
+    public void setWeight(LongHolder weight) {
+        this.weight = weight.getValue();
     }
 
-    public void setTime(SampleTime time) {
-        timeFromStartNs = time.getTimeFromStartNs();
+    public void setTime(LongHolder time) {
+        timeFromStartNs = time.getValue();
     }
 
     public long getTimeFromStartNs() {
@@ -42,19 +41,17 @@ public class Sample {
     }
 
     public long getAddress() {
-        if (backtrace == null || backtrace.frames().isEmpty()) return 0;
-        return backtrace.frames().get(0).getAddress();
+        if (topFrame == null) return 0;
+        return topFrame.getAddress();
     }
 
     public String getBinary() {
-        if (backtrace == null || backtrace.frames().isEmpty()) return null;
-        Binary bin = backtrace.frames().get(0).getBinary();
-        if (bin == null) return null;
-        return bin.getName();
+        if (topFrame == null) return null;
+        return topFrame.getBinary();
     }
 
     public String getSymbol() {
-        if (backtrace == null || backtrace.frames().isEmpty()) return null;
-        return backtrace.frames().get(0).getName();
+        if (topFrame == null) return null;
+        return topFrame.getName();
     }
 }

@@ -38,7 +38,7 @@ public class XCTraceHandler extends DefaultHandler {
 
     private static long parseAddress(Attributes attributes) {
         String val = attributes.getValue("addr");
-        if (!val.startsWith("0x")) throw new IllegalStateException("Unexpected addr formats: " + val);
+        if (!val.startsWith("0x")) throw new IllegalStateException("Unexpected addr format: " + val);
         try {
             return Long.parseUnsignedLong(val.substring(2), 16);
         } catch (Exception e) {
@@ -50,8 +50,8 @@ public class XCTraceHandler extends DefaultHandler {
         return attributes.getValue("name");
     }
 
-    private static boolean has(Attributes attributes, String id) {
-        return attributes.getValue(id) != null;
+    private static boolean hasRef(Attributes attributes) {
+        return attributes.getValue("ref") != null;
     }
 
     private TraceEntry getCached(long ref) {
@@ -93,10 +93,10 @@ public class XCTraceHandler extends DefaultHandler {
                 currentSample = new Sample();
                 break;
             case TraceEntry.SAMPLE_TIME:
-                if (has(attributes, "ref")) {
+                if (hasRef(attributes)) {
                     entries.push(getCached(parseRef(attributes)));
                 } else {
-                    entries.push(cache(new SampleTime(parseId(attributes))));
+                    entries.push(cache(new LongHolder(parseId(attributes))));
                     needParse = true;
                 }
                 break;
@@ -104,22 +104,22 @@ public class XCTraceHandler extends DefaultHandler {
             case TraceEntry.WEIGHT:
             case TraceEntry.PMC_EVENT:
                 // TODO: validate only one of them is observed
-                if (has(attributes, "ref")) {
+                if (hasRef(attributes)) {
                     entries.push(getCached(parseRef(attributes)));
                 } else {
-                    entries.push(cache(new CycleWeight(parseId(attributes))));
+                    entries.push(cache(new LongHolder(parseId(attributes))));
                     needParse = true;
                 }
                 break;
             case TraceEntry.BACKTRACE:
-                if (has(attributes, "ref")) {
+                if (hasRef(attributes)) {
                     entries.push(getCached(parseRef(attributes)));
                 } else {
                     entries.push(cache(new Backtrace(parseId(attributes))));
                 }
                 break;
             case TraceEntry.BINARY:
-                if (has(attributes, "ref")) {
+                if (hasRef(attributes)) {
                     entries.push(getCached(parseRef(attributes)));
                 } else {
                     Binary bin = new Binary(parseId(attributes));
@@ -128,7 +128,7 @@ public class XCTraceHandler extends DefaultHandler {
                 }
                 break;
             case TraceEntry.FRAME:
-                if (has(attributes, "ref")) {
+                if (hasRef(attributes)) {
                     entries.push(getCached(parseRef(attributes)));
                 } else {
                     Frame frame = new Frame(parseId(attributes));
@@ -140,7 +140,7 @@ public class XCTraceHandler extends DefaultHandler {
                 }
                 break;
             case TraceEntry.PMC_EVENTS:
-                if (has(attributes, "ref")) {
+                if (hasRef(attributes)) {
                     entries.push(getCached(parseRef(attributes)));
                 } else {
                     PmcEvents events = new PmcEvents(parseId(attributes));
@@ -171,9 +171,9 @@ public class XCTraceHandler extends DefaultHandler {
                 currentSample = null;
                 break;
             case TraceEntry.SAMPLE_TIME:
-                SampleTime time = (SampleTime) entries.pop();
+                LongHolder time = (LongHolder) entries.pop();
                 if (needParse) {
-                    time.setTimeFromStartNs(Long.parseLong(builder.toString()));
+                    time.setValue(Long.parseLong(builder.toString()));
                 }
                 currentSample.setTime(time);
                 needParse = false;
@@ -181,9 +181,9 @@ public class XCTraceHandler extends DefaultHandler {
             case TraceEntry.CYCLE_WEIGHT:
             case TraceEntry.WEIGHT:
             case TraceEntry.PMC_EVENT:
-                CycleWeight weight = (CycleWeight) entries.pop();
+                LongHolder weight = (LongHolder) entries.pop();
                 if (needParse) {
-                    weight.setWeight(Long.parseLong(builder.toString()));
+                    weight.setValue(Long.parseLong(builder.toString()));
                 }
                 currentSample.setWeight(weight);
                 needParse = false;
@@ -198,7 +198,11 @@ public class XCTraceHandler extends DefaultHandler {
                 break;
             case TraceEntry.FRAME:
                 Frame frame = (Frame) entries.pop();
-                ((Backtrace) entries.peek()).addFrame(frame);
+                Backtrace backtrace = ((Backtrace) entries.peek());
+                // we only need a top frame
+                if (backtrace.isEmpty()) {
+                    backtrace.addFrame(frame);
+                }
                 break;
             case TraceEntry.PMC_EVENTS:
                 PmcEvents events = (PmcEvents) entries.pop();

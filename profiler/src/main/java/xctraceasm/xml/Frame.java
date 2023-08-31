@@ -1,11 +1,13 @@
 package xctraceasm.xml;
 
+import java.util.Objects;
+
 public class Frame extends TraceEntry {
     private String name = "";
 
     private long address = 0;
 
-    private Binary binary = null;
+    private String binary = null;
 
     public Frame(long id) {
         super(id);
@@ -27,11 +29,11 @@ public class Frame extends TraceEntry {
         this.address = address;
     }
 
-    public Binary getBinary() {
+    public String getBinary() {
         return binary;
     }
 
     public void setBinary(Binary binary) {
-        this.binary = binary;
+        this.binary = Objects.requireNonNull(binary, "Binary is null").getName();
     }
 }
