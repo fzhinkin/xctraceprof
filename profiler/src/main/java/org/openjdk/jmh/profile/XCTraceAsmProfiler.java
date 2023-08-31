@@ -63,11 +63,7 @@ public class XCTraceAsmProfiler extends AbstractPerfAsmProfiler {
 
     public XCTraceAsmProfiler(String initLine) throws ProfilerException {
         super(initLine, "sampled_pc");
-
-        Collection<String> out = Utils.tryWith("xctrace", "version");
-        if (!out.isEmpty()) {
-            throw new ProfilerException(out.toString());
-        }
+        XCTraceUtils.checkXCTraceWorks();
         try {
             template = set.valueOf(templateOpt);
         } catch (OptionException e) {
@@ -106,13 +102,8 @@ public class XCTraceAsmProfiler extends AbstractPerfAsmProfiler {
     }
 
     private TableDesc.TableType chooseTable(Path profile) {
+        XCTraceUtils.exportTableOfContents(profile.toAbsolutePath().toString(), perfParsedData.getAbsolutePath());
         try {
-            ProcessBuilder pb = new ProcessBuilder("xctrace", "export",
-                    "--input", profile.toAbsolutePath().toString(),
-                    "--toc",
-                    "--output", perfParsedData.getAbsolutePath());
-            Process process = pb.start();
-            process.waitFor();
             TableOfContentsHandler handler = new TableOfContentsHandler();
             SAXParserFactory.newInstance().newSAXParser().parse(perfParsedData.file(), handler);
             List<TableDesc> tables = handler.getSupportedTables();
@@ -131,7 +122,7 @@ public class XCTraceAsmProfiler extends AbstractPerfAsmProfiler {
                         "please specify which one to use using \"table\" option");
             }
             return tables.get(0).getTableType();
-        } catch (IOException | InterruptedException | ParserConfigurationException | SAXException e) {
+        } catch (IOException | ParserConfigurationException | SAXException e) {
             throw new IllegalStateException(e);
         }
     }
@@ -140,16 +131,7 @@ public class XCTraceAsmProfiler extends AbstractPerfAsmProfiler {
     protected void parseEvents() {
         Path profile = getRunPath();
         foundTable = chooseTable(profile);
-        try {
-            ProcessBuilder pb = new ProcessBuilder("xctrace", "export",
-                    "--input", profile.toAbsolutePath().toString(),
-                    "--xpath", "/trace-toc/run/data/table[@schema=\"" + foundTable.tableName + "\"]",
-                    "--output", perfParsedData.getAbsolutePath());
-            Process process = pb.start();
-            process.waitFor();
-        } catch (IOException | InterruptedException e) {
-            throw new IllegalStateException(e);
-        }
+        XCTraceUtils.exportTable(profile.toAbsolutePath().toString(), perfParsedData.getAbsolutePath(), foundTable);
     }
 
     @Override
@@ -251,11 +233,7 @@ public class XCTraceAsmProfiler extends AbstractPerfAsmProfiler {
 
     @Override
     public Collection<String> addJVMInvokeOptions(BenchmarkParams params) {
-        return Arrays.asList(
-                "xctrace", "record", "--template", template,
-                "--target-stdout", "-", "--output", perfBinData.getAbsolutePath(),
-                "--launch", "--"
-        );
+        return XCTraceUtils.recordCommandPrefix(perfBinData.getAbsolutePath(), template);
     }
 
     @Override

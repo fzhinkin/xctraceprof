@@ -53,10 +53,7 @@ public class XCTraceNormProfiler implements ExternalProfiler {
         OptionSet options = ProfilerUtils.parseInitLine(initLine, parser);
         template = options.valueOf(templateOpt);
 
-        Collection<String> out = Utils.tryWith("xctrace", "version");
-        if (!out.isEmpty()) {
-            throw new ProfilerException(out.toString());
-        }
+        XCTraceUtils.checkXCTraceWorks();
 
         // TODO: check template exists
 
@@ -70,12 +67,7 @@ public class XCTraceNormProfiler implements ExternalProfiler {
 
     @Override
     public Collection<String> addJVMInvokeOptions(BenchmarkParams params) {
-        return Arrays.asList(
-                "xctrace", "record", "--template", template,
-                "--output", temporaryFolder.toAbsolutePath().toString(),
-                "--target-stdout", "-",
-                "--launch", "--"
-        );
+        return XCTraceUtils.recordCommandPrefix(temporaryFolder.toAbsolutePath().toString(), template);
     }
 
     @Override
@@ -104,15 +96,7 @@ public class XCTraceNormProfiler implements ExternalProfiler {
     public Collection<? extends Result> afterTrial(BenchmarkResult br, long pid, File stdOut, File stdErr) {
         TableDesc.TableType table = TableDesc.TableType.COUNTERS_PROFILE;
         Path traceFile = getRunPath();
-        Collection<String> out = Utils.tryWith(
-                "xctrace", "export",
-                "--input", traceFile.toAbsolutePath().toString(),
-                "--output", outputFile.getAbsolutePath(),
-                "--toc"
-        );
-        if (!out.isEmpty()) {
-            throw new IllegalStateException(out.toString());
-        }
+        XCTraceUtils.exportTableOfContents(traceFile.toAbsolutePath().toString(), outputFile.getAbsolutePath());
         TableOfContentsHandler tocHandler = new TableOfContentsHandler();
         try {
             SAXParserFactory.newInstance().newSAXParser().parse(outputFile.file(), tocHandler);
@@ -128,16 +112,7 @@ public class XCTraceNormProfiler implements ExternalProfiler {
         if (tableDesc.counters().isEmpty() && tableDesc.getTriggerType() == CountersProfileTableDesc.TriggerType.TIME) {
             throw new IllegalStateException("Results does not contain any events.");
         }
-        out = Utils.tryWith(
-                "xctrace", "export",
-                "--input", traceFile.toAbsolutePath().toString(),
-                "--output", outputFile.getAbsolutePath(),
-                "--xpath",
-                "/trace-toc/run/data/table[@schema=\"" + table.tableName + "\"]"
-        );
-        if (!out.isEmpty()) {
-            throw new IllegalStateException(out.toString());
-        }
+        XCTraceUtils.exportTable(traceFile.toAbsolutePath().toString(), outputFile.getAbsolutePath(), table);
 
         BenchmarkResultMetaData md = br.getMetadata();
         if (md == null) {
