@@ -13,13 +13,14 @@ public class TocHandlerTest extends XmlTestBase {
     @Test
     public void parseDocumentWithoutToc() throws Exception {
         factory.newSAXParser().parse(openResource("cpu-profile.xml"), handler);
-        assertTrue(handler.getKdebugTables().isEmpty());
+        assertTrue(handler.getSupportedTables().isEmpty());
     }
 
     @Test
     public void parsePmcToc() throws Exception {
         factory.newSAXParser().parse(openResource("pmc-toc.xml"), handler);
-        List<TableDesc> tables = handler.getKdebugTables();
+        List<TableDesc> tables = handler.getSupportedTables();
+        assertEquals(1693140580479L, handler.getRecordStartMs());
         assertEquals(1, tables.size());
 
         TableDesc table = tables.get(0);
@@ -37,7 +38,8 @@ public class TocHandlerTest extends XmlTestBase {
     @Test
     public void parseTimeToc() throws Exception {
         factory.newSAXParser().parse(openResource("time-toc.xml"), handler);
-        List<TableDesc> tables = handler.getKdebugTables();
+        assertEquals(1693153606998L, handler.getRecordStartMs());
+        List<TableDesc> tables = handler.getSupportedTables();
         assertEquals(1, tables.size());
 
         TableDesc table = tables.get(0);
@@ -55,7 +57,8 @@ public class TocHandlerTest extends XmlTestBase {
     @Test
     public void parseMixedToc() throws Exception {
         factory.newSAXParser().parse(openResource("mixed-toc.xml"), handler);
-        List<TableDesc> tables = handler.getKdebugTables();
+        assertEquals(1693153762702L, handler.getRecordStartMs());
+        List<TableDesc> tables = handler.getSupportedTables();
         assertEquals(2, tables.size());
 
         assertTrue(tables.stream().anyMatch(t -> t.getTableType() == TableDesc.TableType.COUNTERS_PROFILE));
@@ -65,7 +68,8 @@ public class TocHandlerTest extends XmlTestBase {
     @Test
     public void parseCpuProfileToc() throws Exception {
         factory.newSAXParser().parse(openResource("cpu-prof-toc.xml"), handler);
-        List<TableDesc> tables = handler.getKdebugTables();
+        assertEquals(1693158302632L, handler.getRecordStartMs());
+        List<TableDesc> tables = handler.getSupportedTables();
         assertEquals(1, tables.size());
         assertEquals(TableDesc.TableType.CPU_PROFILE, tables.get(0).getTableType());
     }

@@ -1,6 +1,5 @@
 package org.openjdk.jmh.profile;
 
-import jdk.nashorn.internal.runtime.ParserException;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
@@ -120,7 +119,7 @@ public class XCTraceNormProfiler implements ExternalProfiler {
         } catch (ParserConfigurationException | SAXException | IOException e) {
             throw new IllegalStateException(e);
         }
-        CountersProfileTableDesc tableDesc = (CountersProfileTableDesc) tocHandler.getKdebugTables()
+        CountersProfileTableDesc tableDesc = (CountersProfileTableDesc) tocHandler.getSupportedTables()
                 .stream()
                 .filter(t -> t.getTableType() == table)
                 .findFirst()

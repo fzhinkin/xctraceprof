@@ -115,7 +115,7 @@ public class XCTraceAsmProfiler extends AbstractPerfAsmProfiler {
             process.waitFor();
             TableOfContentsHandler handler = new TableOfContentsHandler();
             SAXParserFactory.newInstance().newSAXParser().parse(perfParsedData.file(), handler);
-            List<TableDesc> tables = handler.getKdebugTables();
+            List<TableDesc> tables = handler.getSupportedTables();
             if (tables.isEmpty()) {
                 throw new IllegalStateException("Profiling results does not contain table supported by this profiler.");
             }

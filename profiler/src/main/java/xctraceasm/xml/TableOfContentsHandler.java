@@ -1,20 +1,18 @@
 package xctraceasm.xml;
 
 import org.xml.sax.Attributes;
-import org.xml.sax.SAXException;
 import org.xml.sax.helpers.DefaultHandler;
 
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
+import java.time.Instant;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.*;
 import java.util.stream.Collectors;
 
 // TODO: validate the document
 public class TableOfContentsHandler extends DefaultHandler {
-    private static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat(
-            "yyyy-MM-dd'T'HH:mm:ss.SSSXXX"
-    );
-    private final List<TableDesc> kdebugTables = new ArrayList<>();
+    private static final DateTimeFormatter TOC_DATE_FORMAT = DateTimeFormatter.ISO_OFFSET_DATE_TIME;
+    private final List<TableDesc> supportedTables = new ArrayList<>();
 
     private final StringBuilder builder = new StringBuilder();
 
@@ -22,8 +20,8 @@ public class TableOfContentsHandler extends DefaultHandler {
 
     private long recordStartMs;
 
-    public List<TableDesc> getKdebugTables() {
-        return Collections.unmodifiableList(kdebugTables);
+    public List<TableDesc> getSupportedTables() {
+        return Collections.unmodifiableList(supportedTables);
     }
 
     public long getRecordStartMs() {
@@ -41,7 +39,7 @@ public class TableOfContentsHandler extends DefaultHandler {
 
         String schema = Objects.requireNonNull(attributes.getValue("schema"), "Schema not found");
         if (schema.equals(TableDesc.TableType.CPU_PROFILE.tableName)) {
-            kdebugTables.add(TableDesc.CPU_PROFILE);
+            supportedTables.add(TableDesc.CPU_PROFILE);
         }
         if (schema.equals(TableDesc.TableType.COUNTERS_PROFILE.tableName)) {
             parseCountersProfile(attributes);
@@ -49,14 +47,14 @@ public class TableOfContentsHandler extends DefaultHandler {
     }
 
     @Override
-    public void endElement(String uri, String localName, String qName) throws SAXException {
+    public void endElement(String uri, String localName, String qName) {
         if (!qName.equals("start-date")) {
             return;
         }
         recordChars = false;
         try {
-            recordStartMs = DATE_FORMAT.parse(builder.toString()).toInstant().toEpochMilli();
-        } catch (ParseException e) {
+            recordStartMs = Instant.from(TOC_DATE_FORMAT.parse(builder.toString())).toEpochMilli();
+        } catch (DateTimeParseException e) {
             throw new IllegalStateException(e);
         }
     }
@@ -89,7 +87,7 @@ public class TableOfContentsHandler extends DefaultHandler {
                 "Trigger threshold not found"));
         CountersProfileTableDesc table = new CountersProfileTableDesc(CountersProfileTableDesc.TriggerType.PMI,
                 parseEvents(attributes), pmiEvent, threshold);
-        kdebugTables.add(table);
+        supportedTables.add(table);
     }
 
     private void parseTimeSampleTable(Attributes attributes) {
@@ -97,7 +95,7 @@ public class TableOfContentsHandler extends DefaultHandler {
                 "Trigger threshold not found"));
         CountersProfileTableDesc table = new CountersProfileTableDesc(CountersProfileTableDesc.TriggerType.TIME,
                 parseEvents(attributes), "TIME_MICRO_SEC", threshold);
-        kdebugTables.add(table);
+        supportedTables.add(table);
     }
 
     private static List<String> parseEvents(Attributes attributes) {
