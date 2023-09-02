@@ -160,7 +160,7 @@ public class XCTraceNormProfiler implements ExternalProfiler {
         });
         try {
             SAXParserFactory.newInstance().newSAXParser().parse(outputFile.file(), handler);
-            removeDir(temporaryFolder);
+            TempFileUtils.removeDirectory(temporaryFolder);
         } catch (ParserConfigurationException | SAXException | IOException e) {
             throw new IllegalStateException(e);
         }
@@ -205,21 +205,5 @@ public class XCTraceNormProfiler implements ExternalProfiler {
     @Override
     public String getDescription() {
         return "XCTrace PMU counters statistics, normalized by operation count";
-    }
-
-    private static void removeDir(Path path) throws IOException {
-        Files.walkFileTree(path, new SimpleFileVisitor<Path>() {
-            @Override
-            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                Files.delete(file);
-                return FileVisitResult.CONTINUE;
-            }
-
-            @Override
-            public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
-                Files.delete(dir);
-                return FileVisitResult.CONTINUE;
-            }
-        });
     }
 }

@@ -22,12 +22,10 @@ package org.openjdk.jmh.profile;
 import org.openjdk.jmh.util.Utils;
 import xctraceasm.xml.TableDesc;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Set;
 
-public final class XCTraceUtils {
+final class XCTraceUtils {
     private XCTraceUtils() {
     }
 

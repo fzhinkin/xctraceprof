@@ -165,19 +165,7 @@ public class XCTraceAsmProfiler extends AbstractPerfAsmProfiler {
     public Collection<? extends Result> afterTrial(BenchmarkResult br, long pid, File stdOut, File stdErr) {
         Collection<? extends Result> results = super.afterTrial(br, pid, stdOut, stdErr);
         try {
-            Files.walkFileTree(perfBinData.file().toPath(), new SimpleFileVisitor<Path>() {
-                @Override
-                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                    Files.delete(file);
-                    return FileVisitResult.CONTINUE;
-                }
-
-                @Override
-                public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
-                    Files.delete(dir);
-                    return FileVisitResult.CONTINUE;
-                }
-            });
+            TempFileUtils.removeDirectory(perfBinData.file().toPath());
         } catch (IOException e) {
             throw new IllegalStateException(e);
         }
