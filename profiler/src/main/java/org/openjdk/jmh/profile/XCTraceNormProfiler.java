@@ -104,7 +104,7 @@ public class XCTraceNormProfiler implements ExternalProfiler {
     private Path getRunPath() {
         try (Stream<Path> files = Files.list(temporaryFolder)) {
             return files
-                    //.filter(path -> path.getFileName().startsWith("Launch"))
+                    .filter(path -> path.getFileName().toString().startsWith("Launch"))
                     .collect(Collectors.toList()).get(0);
         } catch (IOException e) {
             throw new IllegalStateException(e);
