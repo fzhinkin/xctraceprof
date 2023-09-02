@@ -69,9 +69,9 @@ class XCTraceTableHandler extends XCTraceHandlerBase {
     }
 
     private <T extends TraceElement> void cache(T e) {
-        TraceElement old = entriesCache.put(e.getId(), e);
+        TraceElement old = entriesCache.put(e.id, e);
         if (old != null) {
-            throw new IllegalStateException("Duplicate entry for key " + e.getId() + ". New value: "
+            throw new IllegalStateException("Duplicate entry for key " + e.id + ". New value: "
                     + e + ", old value: " + old);
         }
     }
@@ -111,7 +111,7 @@ class XCTraceTableHandler extends XCTraceHandlerBase {
     private LongHolder popAndUpdateLongHolder() {
         LongHolder value = pop();
         if (isNeedToParseCharacters()) {
-            value.setValue(Long.parseLong(getCharacters()));
+            value.value = Long.parseLong(getCharacters());
         }
         return value;
     }
@@ -119,9 +119,8 @@ class XCTraceTableHandler extends XCTraceHandlerBase {
     private ValueHolder<long[]> popAndUpdateEvents() {
         ValueHolder<long[]> value = pop();
         if (isNeedToParseCharacters()) {
-            long[] events = Arrays.stream(getCharacters().split(" "))
+            value.value = Arrays.stream(getCharacters().split(" "))
                     .mapToLong(Long::parseLong).toArray();
-            value.setValue(events);
         }
         return value;
     }
@@ -183,34 +182,34 @@ class XCTraceTableHandler extends XCTraceHandlerBase {
                 break;
             case XCTraceHandlerBase.SAMPLE_TIME: {
                 LongHolder value = popAndUpdateLongHolder();
-                currentSample.setTime(value.getValue());
+                currentSample.setTime(value.value);
                 break;
             }
             case XCTraceHandlerBase.CYCLE_WEIGHT:
             case XCTraceHandlerBase.WEIGHT:
             case XCTraceHandlerBase.PMC_EVENT:
                 LongHolder value = popAndUpdateLongHolder();
-                currentSample.setWeight(value.getValue());
+                currentSample.setWeight(value.value);
                 break;
             case XCTraceHandlerBase.BACKTRACE:
-                Frame topFrame = this.<ValueHolder<Frame>>pop().getValue();
-                currentSample.setTopFrame(topFrame.getAddress(), topFrame.getName(), topFrame.getBinary());
+                Frame topFrame = this.<ValueHolder<Frame>>pop().value;
+                currentSample.setTopFrame(topFrame.address, topFrame.name, topFrame.binary);
                 break;
             case XCTraceHandlerBase.BINARY:
                 ValueHolder<String> bin = pop();
-                this.<Frame>peek().setBinary(bin.getValue());
+                this.<Frame>peek().binary = bin.value;
                 break;
             case XCTraceHandlerBase.FRAME:
                 Frame frame = pop();
                 ValueHolder<Frame> backtrace = peek();
                 // we only need a top frame
-                if (backtrace.getValue() == null) {
-                    backtrace.setValue(frame);
+                if (backtrace.value == null) {
+                    backtrace.value = frame;
                 }
                 break;
             case XCTraceHandlerBase.PMC_EVENTS:
                 ValueHolder<long[]> events = popAndUpdateEvents();
-                currentSample.setSamples(events.getValue());
+                currentSample.setSamples(events.value);
                 break;
         }
         setNeedParseCharacters(false);
@@ -222,21 +221,18 @@ class XCTraceTableHandler extends XCTraceHandlerBase {
         entries.clear();
     }
 
-    static abstract class TraceElement {
+    private static abstract class TraceElement {
 
-        private final long id;
+        public final long id;
 
         public TraceElement(long id) {
             this.id = id;
         }
 
-        public long getId() {
-            return id;
-        }
     }
 
-    static final class ValueHolder<T> extends TraceElement {
-        private T value;
+    private static final class ValueHolder<T> extends TraceElement {
+        public T value;
 
         ValueHolder(long id, T value) {
             super(id);
@@ -247,58 +243,28 @@ class XCTraceTableHandler extends XCTraceHandlerBase {
             this(id, null);
         }
 
-        public T getValue() {
-            return value;
-        }
-
-        public void setValue(T value) {
-            this.value = value;
-        }
     }
 
-    static final class LongHolder extends TraceElement {
-        private long value = 0;
+    private static final class LongHolder extends TraceElement {
+        public long value = 0;
 
         public LongHolder(long id) {
             super(id);
         }
 
-        public long getValue() {
-            return value;
-        }
-
-        public void setValue(long value) {
-            this.value = value;
-        }
     }
 
-    static final class Frame extends TraceElement {
-        private final String name;
+    private static final class Frame extends TraceElement {
+        public final String name;
 
-        private final long address;
+        public final long address;
 
-        private String binary = null;
+        public String binary = null;
 
         public Frame(long id, String name, long address) {
             super(id);
             this.name = name;
             this.address = address;
-        }
-
-        public String getName() {
-            return name;
-        }
-
-        public long getAddress() {
-            return address;
-        }
-
-        public String getBinary() {
-            return binary;
-        }
-
-        public void setBinary(String binary) {
-            this.binary = Objects.requireNonNull(binary, "Binary is null");
         }
     }
 }
