@@ -38,7 +38,6 @@ public class XCTraceHandlerTest extends XmlTestBase {
         });
 
         factory.newSAXParser().parse(openResource("cpu-profile.xml"), handler);
-        assertTrue(handler.observedCpuProfileSchema());
         assertEquals(584, count.get());
     }
 
@@ -47,7 +46,6 @@ public class XCTraceHandlerTest extends XmlTestBase {
         List<Sample> samples = new ArrayList<>();
         XCTraceHandler handler = new XCTraceHandler(TableDesc.TableType.CPU_PROFILE, samples::add);
         factory.newSAXParser().parse(openResource("cpu-profile.xml"), handler);
-        assertTrue(handler.observedCpuProfileSchema());
 
         Sample first = samples.get(1);
         assertEquals(465925290L, first.getTimeFromStartNs());
@@ -67,8 +65,9 @@ public class XCTraceHandlerTest extends XmlTestBase {
     @Test
     public void unsupportedSchema() throws Exception {
         XCTraceHandler handler = new XCTraceHandler(TableDesc.TableType.CPU_PROFILE, sample -> fail("Expected no samples"));
-        factory.newSAXParser().parse(openResource("counters-profile.xml"), handler);
-        assertFalse(handler.observedCpuProfileSchema());
+        assertThrows(IllegalStateException.class, () -> {
+            factory.newSAXParser().parse(openResource("counters-profile.xml"), handler);
+        });
     }
 
     @Test
@@ -82,7 +81,7 @@ public class XCTraceHandlerTest extends XmlTestBase {
         assertEquals(434050426L, first.getTimeFromStartNs());
         assertEquals(0x10e403d73L, first.getAddress());
         assertEquals(1000000L, first.getWeight());
-        assertArrayEquals(new long[] {40L, 4770L}, first.getSamples());
+        assertArrayEquals(new long[]{40L, 4770L}, first.getSamples());
     }
 
     @Test
@@ -96,6 +95,6 @@ public class XCTraceHandlerTest extends XmlTestBase {
         assertEquals(402129330L, first.getTimeFromStartNs());
         assertEquals(0L, first.getAddress());
         assertEquals(1000000L, first.getWeight());
-        assertArrayEquals(new long[] {120029L, 214575L}, first.getSamples());
+        assertArrayEquals(new long[]{120029L, 214575L}, first.getSamples());
     }
 }

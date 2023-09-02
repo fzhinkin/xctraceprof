@@ -19,18 +19,23 @@
 
 package xctraceasm.xml;
 
-public class Binary extends TraceEntry {
-    private String name =  "";
+public class ValueHolder<T> extends TraceEntry {
+    private T value;
 
-    public Binary(long id) {
+    ValueHolder(long id, T value) {
         super(id);
+        this.value = value;
     }
 
-    public String getName() {
-        return name;
+    ValueHolder(long id) {
+        this(id, null);
     }
 
-    public void setName(String name) {
-        this.name = name;
+    public T getValue() {
+        return value;
+    }
+
+    public void setValue(T value) {
+        this.value = value;
     }
 }

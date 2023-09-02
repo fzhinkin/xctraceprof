@@ -29,10 +29,8 @@ public class Sample {
 
     private long[] samples = EMPTY;
 
-    public void setBacktrace(Backtrace backtrace) {
-        if (!backtrace.isEmpty()) {
-            this.topFrame = backtrace.getTopFrame();
-        }
+    public void setBacktrace(Frame backtrace) {
+        topFrame = backtrace;
     }
 
     public void setWeight(LongHolder weight) {

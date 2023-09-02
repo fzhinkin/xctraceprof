@@ -229,10 +229,6 @@ public class XCTraceAsmProfiler extends AbstractPerfAsmProfiler {
         } catch (ParserConfigurationException | SAXException | IOException e) {
             throw new IllegalStateException(e);
         }
-        if (!handler.observedCpuProfileSchema()) {
-            throw new IllegalStateException("Parsed output does not contain cpu-profile table. " +
-                    "Make sure you're using a template derived from the \"CPU Profiler\".");
-        }
 
         IntervalMap<MethodDesc> methodMap = new IntervalMap<>();
         methods.forEach((method, addresses) -> {

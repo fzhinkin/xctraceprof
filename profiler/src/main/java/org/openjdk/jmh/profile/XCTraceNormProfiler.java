@@ -164,9 +164,6 @@ public class XCTraceNormProfiler implements ExternalProfiler {
         } catch (ParserConfigurationException | SAXException | IOException e) {
             throw new IllegalStateException(e);
         }
-        if (!handler.observedCpuProfileSchema()) {
-            throw new IllegalStateException("Table with samples was not found");
-        }
 
         long timeMs = md.getStopTime() - md.getMeasurementTime();
         if (timeMs == 0L) {

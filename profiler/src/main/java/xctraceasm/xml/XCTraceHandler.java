@@ -24,6 +24,7 @@ import org.xml.sax.helpers.DefaultHandler;
 
 import java.util.*;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 public class XCTraceHandler extends DefaultHandler {
     private final TableDesc.TableType tableType;
@@ -39,12 +40,7 @@ public class XCTraceHandler extends DefaultHandler {
     private Sample currentSample = null;
 
     private boolean needParse = false;
-
-    private boolean skipNodes = false;
-
     private boolean withinNode = false;
-
-    private boolean observedRequiredTable = false;
 
 
     private static long parseId(Attributes attributes) {
@@ -73,106 +69,126 @@ public class XCTraceHandler extends DefaultHandler {
         return attributes.getValue("ref") != null;
     }
 
-    private TraceEntry getCached(long ref) {
-        TraceEntry entry = entriesCache.get(ref);
-        Objects.requireNonNull(entry, "Entry not found in cache: ref=\"" + ref + "\"");
-        return entry;
-    }
-
-    private <T extends TraceEntry> T cache(T entry) {
-        entriesCache.put(entry.getId(), entry);
-        return entry;
-    }
 
     public XCTraceHandler(TableDesc.TableType tableType, Consumer<Sample> onSample) {
         this.tableType = tableType;
         callback = onSample;
     }
 
-    public boolean observedCpuProfileSchema() {
-        return observedRequiredTable;
+    private <T extends TraceEntry> void cache(T e) {
+        TraceEntry old = entriesCache.put(e.getId(), e);
+        if (old != null) {
+            throw new IllegalStateException("Duplicate entry for key " + e.getId() + ". New value: "
+                    + e + ", old value: " + old);
+        }
+    }
+
+    private <T extends TraceEntry> T get(long id) {
+        TraceEntry value = entriesCache.get(id);
+        if (value == null) {
+            throw new IllegalStateException("Entry not found in cache for id " + id);
+        }
+        @SuppressWarnings("unchecked")
+        T res = (T) value;
+        return res;
+    }
+
+    private <T extends TraceEntry> void pushCachedOrNew(Attributes attributes, Function<Long, T> factory) {
+        if (!hasRef(attributes)) {
+            T value = factory.apply(parseId(attributes));
+            cache(value);
+            entries.push(value);
+            return;
+        }
+        entries.push(get(parseRef(attributes)));
+    }
+
+    private <T extends TraceEntry> T pop() {
+        @SuppressWarnings("unchecked")
+        T res = (T) entries.pop();
+        return res;
+    }
+
+    private <T extends TraceEntry> T peek() {
+        @SuppressWarnings("unchecked")
+        T res = (T) entries.peek();
+        return res;
+    }
+
+    private LongHolder popAndUpdateLongHolder() {
+        LongHolder value = pop();
+        if (needParse) {
+            value.setValue(Long.parseLong(builder.toString()));
+            builder.setLength(0);
+        }
+        return value;
+    }
+
+    private ValueHolder<long[]> popAndUpdateEvents() {
+        ValueHolder<long[]> value = pop();
+        if (needParse) {
+            long[] events = Arrays.stream(builder.toString().split(" "))
+                    .mapToLong(Long::parseLong).toArray();
+            value.setValue(events);
+            builder.setLength(0);
+        }
+        return value;
     }
 
     @Override
     public void startElement(String uri, String localName, String qName, Attributes attributes) {
+        // check that we're within <node> element
         if (qName.equals("node")) {
             withinNode = true;
             return;
         }
+        // check that <schema> has required table name
         if (withinNode && qName.equals("schema")) {
             String schemaName = parseName(attributes);
-            skipNodes = !tableType.tableName.equals(schemaName);
-            observedRequiredTable = observedRequiredTable || !skipNodes;
+            if (!tableType.tableName.equals(schemaName)) {
+                throw new IllegalStateException("Results contains schema with unexpected name: " + schemaName);
+            }
             return;
         }
-        if (skipNodes) return;
         builder.setLength(0);
         switch (qName) {
             case TraceEntry.SAMPLE:
                 currentSample = new Sample();
                 break;
             case TraceEntry.SAMPLE_TIME:
-                if (hasRef(attributes)) {
-                    entries.push(getCached(parseRef(attributes)));
-                } else {
-                    entries.push(cache(new LongHolder(parseId(attributes))));
-                    needParse = true;
-                }
-                break;
             case TraceEntry.CYCLE_WEIGHT:
             case TraceEntry.WEIGHT:
             case TraceEntry.PMC_EVENT:
                 // TODO: validate only one of them is observed
-                if (hasRef(attributes)) {
-                    entries.push(getCached(parseRef(attributes)));
-                } else {
-                    entries.push(cache(new LongHolder(parseId(attributes))));
+                pushCachedOrNew(attributes, id -> {
                     needParse = true;
-                }
+                    return new LongHolder(id);
+                });
                 break;
             case TraceEntry.BACKTRACE:
-                if (hasRef(attributes)) {
-                    entries.push(getCached(parseRef(attributes)));
-                } else {
-                    entries.push(cache(new Backtrace(parseId(attributes))));
-                }
+                pushCachedOrNew(attributes, id -> new ValueHolder<Frame>(id));
                 break;
             case TraceEntry.BINARY:
-                if (hasRef(attributes)) {
-                    entries.push(getCached(parseRef(attributes)));
-                } else {
-                    Binary bin = new Binary(parseId(attributes));
-                    bin.setName(parseName(attributes));
-                    entries.push(cache(bin));
-                }
+                pushCachedOrNew(attributes, id -> new ValueHolder<>(id, parseName(attributes)));
                 break;
             case TraceEntry.FRAME:
-                if (hasRef(attributes)) {
-                    entries.push(getCached(parseRef(attributes)));
-                } else {
-                    Frame frame = new Frame(parseId(attributes));
-                    frame.setName(parseName(attributes));
-                    // Addresses in cpu-* tables are always biased by 1, on both X86_64 and AArch64.
-                    // TODO: figure out why, because kdebug tables have correct addresses.
-                    frame.setAddress(parseAddress(attributes) - 1L);
-                    entries.push(cache(frame));
-                }
+                // Addresses in cpu-* tables are always biased by 1, on both X86_64 and AArch64.
+                // TODO: figure out why, because kdebug tables have correct addresses.
+                pushCachedOrNew(attributes, id -> new Frame(id, parseName(attributes),
+                        parseAddress(attributes) - 1L));
                 break;
             case TraceEntry.PMC_EVENTS:
-                if (hasRef(attributes)) {
-                    entries.push(getCached(parseRef(attributes)));
-                } else {
-                    PmcEvents events = new PmcEvents(parseId(attributes));
-                    entries.push(cache(events));
+                pushCachedOrNew(attributes, id -> {
                     needParse = true;
-                }
+                    return new ValueHolder<long[]>(id);
+                });
                 break;
         }
     }
 
     @Override
     public void characters(char[] ch, int start, int length) {
-        if (!skipNodes && needParse) {
+        if (needParse) {
             builder.append(ch, start, length);
         }
     }
@@ -180,59 +196,45 @@ public class XCTraceHandler extends DefaultHandler {
     @Override
     public void endElement(String uri, String localName, String qName) {
         if (qName.equals("node")) {
-            skipNodes = false;
             return;
         }
-        if (skipNodes) return;
         switch (qName) {
             case TraceEntry.SAMPLE:
                 callback.accept(currentSample);
                 currentSample = null;
                 break;
-            case TraceEntry.SAMPLE_TIME:
-                LongHolder time = (LongHolder) entries.pop();
-                if (needParse) {
-                    time.setValue(Long.parseLong(builder.toString()));
-                }
-                currentSample.setTime(time);
-                needParse = false;
+            case TraceEntry.SAMPLE_TIME: {
+                LongHolder value = popAndUpdateLongHolder();
+                currentSample.setTime(value);
                 break;
+            }
             case TraceEntry.CYCLE_WEIGHT:
             case TraceEntry.WEIGHT:
             case TraceEntry.PMC_EVENT:
-                LongHolder weight = (LongHolder) entries.pop();
-                if (needParse) {
-                    weight.setValue(Long.parseLong(builder.toString()));
-                }
-                currentSample.setWeight(weight);
-                needParse = false;
+                LongHolder value = popAndUpdateLongHolder();
+                currentSample.setWeight(value);
                 break;
             case TraceEntry.BACKTRACE:
-                Backtrace bt = (Backtrace) entries.pop();
-                currentSample.setBacktrace(bt);
+                currentSample.setBacktrace(this.<ValueHolder<Frame>>pop().getValue());
                 break;
             case TraceEntry.BINARY:
-                Binary bin = (Binary) entries.pop();
-                ((Frame) entries.peek()).setBinary(bin);
+                ValueHolder<String> bin = pop();
+                this.<Frame>peek().setBinary(bin.getValue());
                 break;
             case TraceEntry.FRAME:
-                Frame frame = (Frame) entries.pop();
-                Backtrace backtrace = ((Backtrace) entries.peek());
+                Frame frame = pop();
+                ValueHolder<Frame> backtrace = peek();
                 // we only need a top frame
-                if (backtrace.isEmpty()) {
-                    backtrace.addFrame(frame);
+                if (backtrace.getValue() == null) {
+                    backtrace.setValue(frame);
                 }
                 break;
             case TraceEntry.PMC_EVENTS:
-                PmcEvents events = (PmcEvents) entries.pop();
-                if (needParse) {
-                    events.setCounters(Arrays.stream(builder.toString().split(" "))
-                            .mapToLong(Long::parseLong).toArray());
-                }
-                currentSample.setSamples(events.getCounters());
-                needParse = false;
+                ValueHolder<long[]> events = popAndUpdateEvents();
+                currentSample.setSamples(events.getValue());
                 break;
         }
+        needParse = false;
     }
 
     @Override

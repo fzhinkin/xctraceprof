@@ -22,37 +22,32 @@ package xctraceasm.xml;
 import java.util.Objects;
 
 public class Frame extends TraceEntry {
-    private String name = "";
+    private final String name ;
 
-    private long address = 0;
+    private final long address;
 
     private String binary = null;
 
-    public Frame(long id) {
+    public Frame(long id, String name, long address) {
         super(id);
+        this.name = name;
+        this.address = address;
     }
 
     public String getName() {
         return name;
     }
 
-    public void setName(String name) {
-        this.name = name;
-    }
-
     public long getAddress() {
         return address;
-    }
-
-    public void setAddress(long address) {
-        this.address = address;
     }
 
     public String getBinary() {
         return binary;
     }
 
-    public void setBinary(Binary binary) {
-        this.binary = Objects.requireNonNull(binary, "Binary is null").getName();
+    public void setBinary(String binary) {
+        this.binary = Objects.requireNonNull(binary, "Binary is null");
     }
+
 }
