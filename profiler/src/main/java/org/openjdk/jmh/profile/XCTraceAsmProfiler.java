@@ -27,21 +27,14 @@ import org.openjdk.jmh.results.BenchmarkResult;
 import org.openjdk.jmh.results.Result;
 import org.openjdk.jmh.util.*;
 import org.xml.sax.SAXException;
-import xctraceasm.xml.*;
 
 import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.parsers.SAXParser;
 import javax.xml.parsers.SAXParserFactory;
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.FileVisitResult;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.SimpleFileVisitor;
-import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class XCTraceAsmProfiler extends AbstractPerfAsmProfiler {
     private OptionSpec<String> templateOpt;
@@ -49,9 +42,9 @@ public class XCTraceAsmProfiler extends AbstractPerfAsmProfiler {
     private OptionSpec<String> tableOpt;
 
     private final String template;
-    private final TableDesc.TableType tableType;
+    private final XCTraceTableDesc.TableType tableType;
 
-    private TableDesc.TableType foundTable;
+    private XCTraceTableDesc.TableType foundTable;
 
     private static class AddressInterval {
         private long min;
@@ -92,7 +85,7 @@ public class XCTraceAsmProfiler extends AbstractPerfAsmProfiler {
             if (set.valueOf(tableOpt) == null) {
                 tableType = null;
             } else {
-                tableType = TableDesc.TableType.valueOf(set.valueOf(tableOpt));
+                tableType = XCTraceTableDesc.TableType.valueOf(set.valueOf(tableOpt));
             }
         } catch (IllegalArgumentException e) {
             throw new ProfilerException(e.getMessage());
@@ -110,12 +103,12 @@ public class XCTraceAsmProfiler extends AbstractPerfAsmProfiler {
                 .withOptionalArg().ofType(String.class);
     }
 
-    private TableDesc.TableType chooseTable(Path profile) {
+    private XCTraceTableDesc.TableType chooseTable(Path profile) {
         XCTraceUtils.exportTableOfContents(profile.toAbsolutePath().toString(), perfParsedData.getAbsolutePath());
         try {
-            TableOfContentsHandler handler = new TableOfContentsHandler();
+            XCTraceTableOfContentsHandler handler = new XCTraceTableOfContentsHandler();
             SAXParserFactory.newInstance().newSAXParser().parse(perfParsedData.file(), handler);
-            List<TableDesc> tables = handler.getSupportedTables();
+            List<XCTraceTableDesc> tables = handler.getSupportedTables();
             if (tables.isEmpty()) {
                 throw new IllegalStateException("Profiling results does not contain table supported by this profiler.");
             }
@@ -170,7 +163,7 @@ public class XCTraceAsmProfiler extends AbstractPerfAsmProfiler {
         Multiset<Long> events = new TreeMultiset<>();
 
         double endTimeMs = skipMs + lenMs;
-        XCTraceHandler handler = new XCTraceHandler(foundTable, sample -> {
+        XCTraceTableHandler handler = new XCTraceTableHandler(foundTable, sample -> {
             // TODO: test
             double sampleTimeMs = sample.getTimeFromStartNs() / 1e6;
             if (sampleTimeMs < skipMs || sampleTimeMs >= endTimeMs) {

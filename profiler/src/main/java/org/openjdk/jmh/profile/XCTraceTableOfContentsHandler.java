@@ -17,10 +17,9 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-package xctraceasm.xml;
+package org.openjdk.jmh.profile;
 
 import org.xml.sax.Attributes;
-import org.xml.sax.helpers.DefaultHandler;
 
 import java.time.Instant;
 import java.time.format.DateTimeFormatter;
@@ -29,13 +28,13 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 // TODO: validate the document
-public class TableOfContentsHandler extends XCTraceHandlerBase {
+class XCTraceTableOfContentsHandler extends XCTraceHandlerBase {
     private static final DateTimeFormatter TOC_DATE_FORMAT = DateTimeFormatter.ISO_OFFSET_DATE_TIME;
-    private final List<TableDesc> supportedTables = new ArrayList<>();
+    private final List<XCTraceTableDesc> supportedTables = new ArrayList<>();
 
     private long recordStartMs;
 
-    public List<TableDesc> getSupportedTables() {
+    public List<XCTraceTableDesc> getSupportedTables() {
         return Collections.unmodifiableList(supportedTables);
     }
 
@@ -45,23 +44,23 @@ public class TableOfContentsHandler extends XCTraceHandlerBase {
 
     @Override
     public void startElement(String uri, String localName, String qName, Attributes attributes) {
-        setNeedParseCharacters(qName.equals("start-date"));
-        if (!qName.equals("table")) {
+        setNeedParseCharacters(qName.equals(XCTraceHandlerBase.START_DATE));
+        if (!qName.equals(XCTraceHandlerBase.TABLE)) {
             return;
         }
 
-        String schema = Objects.requireNonNull(attributes.getValue("schema"), "Schema not found");
-        if (schema.equals(TableDesc.TableType.CPU_PROFILE.tableName)) {
-            supportedTables.add(TableDesc.CPU_PROFILE);
+        String schema = Objects.requireNonNull(attributes.getValue(XCTraceHandlerBase.SCHEMA), "Schema not found");
+        if (schema.equals(XCTraceTableDesc.TableType.CPU_PROFILE.tableName)) {
+            supportedTables.add(XCTraceTableDesc.CPU_PROFILE);
         }
-        if (schema.equals(TableDesc.TableType.COUNTERS_PROFILE.tableName)) {
+        if (schema.equals(XCTraceTableDesc.TableType.COUNTERS_PROFILE.tableName)) {
             parseCountersProfile(attributes);
         }
     }
 
     @Override
     public void endElement(String uri, String localName, String qName) {
-        if (!qName.equals("start-date")) {
+        if (!qName.equals(XCTraceHandlerBase.START_DATE)) {
             return;
         }
         try {
@@ -74,12 +73,12 @@ public class TableOfContentsHandler extends XCTraceHandlerBase {
     }
 
     private void parseCountersProfile(Attributes attributes) {
-        String trigger = Objects.requireNonNull(attributes.getValue("trigger"));
-        TableDesc.TriggerType triggerType = TableDesc.TriggerType.valueOf(trigger.toUpperCase());
+        String trigger = Objects.requireNonNull(attributes.getValue(XCTraceHandlerBase.TRIGGER));
+        XCTraceTableDesc.TriggerType triggerType = XCTraceTableDesc.TriggerType.valueOf(trigger.toUpperCase());
 
-        if (triggerType == TableDesc.TriggerType.PMI) {
+        if (triggerType == XCTraceTableDesc.TriggerType.PMI) {
             parsePmiSampleTable(attributes);
-        } else if (triggerType == TableDesc.TriggerType.TIME) {
+        } else if (triggerType == XCTraceTableDesc.TriggerType.TIME) {
             parseTimeSampleTable(attributes);
         } else {
             throw new IllegalStateException("Unsupported trigger type: " + triggerType);
@@ -87,28 +86,28 @@ public class TableOfContentsHandler extends XCTraceHandlerBase {
     }
 
     private void parsePmiSampleTable(Attributes attributes) {
-        String pmiEvent = Objects.requireNonNull(attributes.getValue("pmi-event"),
+        String pmiEvent = Objects.requireNonNull(attributes.getValue(XCTraceHandlerBase.PMI_EVENT),
                 "Trigger event not found");
         if (pmiEvent.startsWith("\"") && pmiEvent.endsWith("\"")) {
             pmiEvent = pmiEvent.substring(1, pmiEvent.length() - 1);
         }
-        long threshold = Long.parseLong(Objects.requireNonNull(attributes.getValue("pmi-threshold"),
+        long threshold = Long.parseLong(Objects.requireNonNull(attributes.getValue(XCTraceHandlerBase.PMI_THRESHOLD),
                 "Trigger threshold not found"));
-        TableDesc table = new TableDesc(TableDesc.TableType.COUNTERS_PROFILE, TableDesc.TriggerType.PMI,
+        XCTraceTableDesc table = new XCTraceTableDesc(XCTraceTableDesc.TableType.COUNTERS_PROFILE, XCTraceTableDesc.TriggerType.PMI,
                 parseEvents(attributes), pmiEvent, threshold);
         supportedTables.add(table);
     }
 
     private void parseTimeSampleTable(Attributes attributes) {
-        long threshold = Long.parseLong(Objects.requireNonNull(attributes.getValue("sample-rate-micro-seconds"),
+        long threshold = Long.parseLong(Objects.requireNonNull(attributes.getValue(XCTraceHandlerBase.SAMPLE_RATE),
                 "Trigger threshold not found"));
-        TableDesc table = new TableDesc(TableDesc.TableType.COUNTERS_PROFILE, TableDesc.TriggerType.TIME,
-                parseEvents(attributes), "TIME_MICRO_SEC", threshold);
+        XCTraceTableDesc table = new XCTraceTableDesc(XCTraceTableDesc.TableType.COUNTERS_PROFILE, XCTraceTableDesc.TriggerType.TIME,
+                parseEvents(attributes), XCTraceSample.TIME_SAMPLE_TRIGGER_NAME, threshold);
         supportedTables.add(table);
     }
 
     private static List<String> parseEvents(Attributes attributes) {
-        String events = attributes.getValue("pmc-events");
+        String events = attributes.getValue(XCTraceHandlerBase.PMC_EVENTS);
         // TODO: support names with whitespaces inside
         return Arrays.stream(events.split(" ")).map(e -> {
                     if (!e.startsWith("\"") && !e.endsWith("\"")) return e;

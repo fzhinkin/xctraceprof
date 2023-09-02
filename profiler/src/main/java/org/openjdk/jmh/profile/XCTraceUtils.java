@@ -20,7 +20,6 @@
 package org.openjdk.jmh.profile;
 
 import org.openjdk.jmh.util.Utils;
-import xctraceasm.xml.TableDesc;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -35,7 +34,7 @@ final class XCTraceUtils {
     private XCTraceUtils() {
     }
 
-    public static void exportTable(String runFile, String outputFile, TableDesc.TableType table) {
+    public static void exportTable(String runFile, String outputFile, XCTraceTableDesc.TableType table) {
         Collection<String> out = Utils.tryWith(
                 "xctrace", "export",
                 "--input", runFile,

@@ -27,9 +27,6 @@ import org.openjdk.jmh.results.*;
 import org.openjdk.jmh.util.FileUtils;
 import org.openjdk.jmh.util.TempFile;
 import org.xml.sax.SAXException;
-import xctraceasm.xml.TableDesc;
-import xctraceasm.xml.TableOfContentsHandler;
-import xctraceasm.xml.XCTraceHandler;
 
 import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.parsers.SAXParserFactory;
@@ -93,25 +90,24 @@ public class XCTraceNormProfiler implements ExternalProfiler {
         }
     }
 
-
     @Override
     public Collection<? extends Result> afterTrial(BenchmarkResult br, long pid, File stdOut, File stdErr) {
-        TableDesc.TableType table = TableDesc.TableType.COUNTERS_PROFILE;
+        XCTraceTableDesc.TableType table = XCTraceTableDesc.TableType.COUNTERS_PROFILE;
         Path traceFile = XCTraceUtils.findTraceFile(temporaryFolder);
         XCTraceUtils.exportTableOfContents(traceFile.toAbsolutePath().toString(), outputFile.getAbsolutePath());
-        TableOfContentsHandler tocHandler = new TableOfContentsHandler();
+        XCTraceTableOfContentsHandler tocHandler = new XCTraceTableOfContentsHandler();
         try {
             SAXParserFactory.newInstance().newSAXParser().parse(outputFile.file(), tocHandler);
         } catch (ParserConfigurationException | SAXException | IOException e) {
             throw new IllegalStateException(e);
         }
-        TableDesc tableDesc = tocHandler.getSupportedTables()
+        XCTraceTableDesc tableDesc = tocHandler.getSupportedTables()
                 .stream()
                 .filter(t -> t.getTableType() == table)
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("Table \"" + table.tableName +
                         "\" was not found in the trace results."));
-        if (tableDesc.counters().isEmpty() && tableDesc.getTriggerType() == TableDesc.TriggerType.TIME) {
+        if (tableDesc.counters().isEmpty() && tableDesc.getTriggerType() == XCTraceTableDesc.TriggerType.TIME) {
             throw new IllegalStateException("Results does not contain any events.");
         }
         XCTraceUtils.exportTable(traceFile.toAbsolutePath().toString(), outputFile.getAbsolutePath(), table);
@@ -127,7 +123,7 @@ public class XCTraceNormProfiler implements ExternalProfiler {
         double[] aggregatedEvents = new double[tableDesc.counters().size() + 1];
         long[] duration = new long[] { Long.MAX_VALUE, Long.MIN_VALUE };
         long[] samplesCount = new long[1];
-        XCTraceHandler handler = new XCTraceHandler(table, sample -> {
+        XCTraceTableHandler handler = new XCTraceTableHandler(table, sample -> {
             if (sample.getTimeFromStartNs() <= skipNs || sample.getTimeFromStartNs() > skipNs + durationNs) {
                 return;
             }
@@ -166,7 +162,7 @@ public class XCTraceNormProfiler implements ExternalProfiler {
             results.add(new ScalarResult(event, aggregatedEvents[i],
                     "#/op", AggregationPolicy.AVG));
         }
-        if (tableDesc.getTriggerType() == TableDesc.TriggerType.PMI) {
+        if (tableDesc.getTriggerType() == XCTraceTableDesc.TriggerType.PMI) {
             results.add(new ScalarResult(tableDesc.triggerEvent(),
                     aggregatedEvents[aggregatedEvents.length - 1],
                     "#/op", AggregationPolicy.AVG));

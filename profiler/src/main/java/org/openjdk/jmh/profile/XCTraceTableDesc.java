@@ -17,14 +17,14 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-package xctraceasm.xml;
+package org.openjdk.jmh.profile;
 
 import java.util.Collections;
 import java.util.List;
 
-public class TableDesc {
-    public static final TableDesc CPU_PROFILE = new TableDesc(TableType.CPU_PROFILE);
-    public static final TableDesc TIME_PROFILE = new TableDesc(TableType.TIME_PROFILE);
+class XCTraceTableDesc {
+    public static final XCTraceTableDesc CPU_PROFILE = new XCTraceTableDesc(TableType.CPU_PROFILE);
+    public static final XCTraceTableDesc TIME_PROFILE = new XCTraceTableDesc(TableType.TIME_PROFILE);
 
     public enum TableType {
         TIME_PROFILE("time-profile"),
@@ -51,7 +51,7 @@ public class TableDesc {
     private final String trigger;
     private final long threshold;
 
-    public TableDesc(TableType tableType, TriggerType triggerType, List<String> counters, String trigger, long threshold) {
+    public XCTraceTableDesc(TableType tableType, TriggerType triggerType, List<String> counters, String trigger, long threshold) {
         this.tableType = tableType;
         this.triggerType = triggerType;
         this.counters = counters;
@@ -59,7 +59,7 @@ public class TableDesc {
         this.threshold = threshold;
     }
 
-    public TableDesc(TableType tableType) {
+    public XCTraceTableDesc(TableType tableType) {
         this(tableType, TriggerType.UNKNOWN, Collections.emptyList(), "", -1);
     }
 

@@ -17,7 +17,7 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-package xctraceasm.xml;
+package org.openjdk.jmh.profile;
 
 import org.xml.sax.Attributes;
 
@@ -25,28 +25,28 @@ import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-public class XCTraceHandler extends XCTraceHandlerBase {
-    private final TableDesc.TableType tableType;
+class XCTraceTableHandler extends XCTraceHandlerBase {
+    private final XCTraceTableDesc.TableType tableType;
 
-    private final Map<Long, TraceEntry> entriesCache = new HashMap<>();
+    private final Map<Long, TraceElement> entriesCache = new HashMap<>();
 
-    private final Stack<TraceEntry> entries = new Stack<>();
+    private final Stack<TraceElement> entries = new Stack<>();
 
-    private final Consumer<Sample> callback;
+    private final Consumer<XCTraceSample> callback;
 
-    private Sample currentSample = null;
+    private XCTraceSample currentSample = null;
 
     private static long parseId(Attributes attributes) {
-        return Long.parseLong(attributes.getValue("id"));
+        return Long.parseLong(attributes.getValue(XCTraceHandlerBase.ID));
     }
 
     private static long parseRef(Attributes attributes) {
-        return Long.parseLong(attributes.getValue("ref"));
+        return Long.parseLong(attributes.getValue(XCTraceHandlerBase.REF));
     }
 
     private static long parseAddress(Attributes attributes) {
-        String val = attributes.getValue("addr");
-        if (!val.startsWith("0x")) throw new IllegalStateException("Unexpected addr format: " + val);
+        String val = attributes.getValue(XCTraceHandlerBase.ADDRESS);
+        if (!val.startsWith("0x")) throw new IllegalStateException("Unexpected address format: " + val);
         try {
             return Long.parseUnsignedLong(val.substring(2), 16);
         } catch (Exception e) {
@@ -55,29 +55,29 @@ public class XCTraceHandler extends XCTraceHandlerBase {
     }
 
     private static String parseName(Attributes attributes) {
-        return attributes.getValue("name");
+        return attributes.getValue(XCTraceHandlerBase.NAME);
     }
 
     private static boolean hasRef(Attributes attributes) {
-        return attributes.getValue("ref") != null;
+        return attributes.getValue(XCTraceHandlerBase.REF) != null;
     }
 
 
-    public XCTraceHandler(TableDesc.TableType tableType, Consumer<Sample> onSample) {
+    public XCTraceTableHandler(XCTraceTableDesc.TableType tableType, Consumer<XCTraceSample> onSample) {
         this.tableType = tableType;
         callback = onSample;
     }
 
-    private <T extends TraceEntry> void cache(T e) {
-        TraceEntry old = entriesCache.put(e.getId(), e);
+    private <T extends TraceElement> void cache(T e) {
+        TraceElement old = entriesCache.put(e.getId(), e);
         if (old != null) {
             throw new IllegalStateException("Duplicate entry for key " + e.getId() + ". New value: "
                     + e + ", old value: " + old);
         }
     }
 
-    private <T extends TraceEntry> T get(long id) {
-        TraceEntry value = entriesCache.get(id);
+    private <T extends TraceElement> T get(long id) {
+        TraceElement value = entriesCache.get(id);
         if (value == null) {
             throw new IllegalStateException("Entry not found in cache for id " + id);
         }
@@ -86,7 +86,7 @@ public class XCTraceHandler extends XCTraceHandlerBase {
         return res;
     }
 
-    private <T extends TraceEntry> void pushCachedOrNew(Attributes attributes, Function<Long, T> factory) {
+    private <T extends TraceElement> void pushCachedOrNew(Attributes attributes, Function<Long, T> factory) {
         if (!hasRef(attributes)) {
             T value = factory.apply(parseId(attributes));
             cache(value);
@@ -96,13 +96,13 @@ public class XCTraceHandler extends XCTraceHandlerBase {
         entries.push(get(parseRef(attributes)));
     }
 
-    private <T extends TraceEntry> T pop() {
+    private <T extends TraceElement> T pop() {
         @SuppressWarnings("unchecked")
         T res = (T) entries.pop();
         return res;
     }
 
-    private <T extends TraceEntry> T peek() {
+    private <T extends TraceElement> T peek() {
         @SuppressWarnings("unchecked")
         T res = (T) entries.peek();
         return res;
@@ -129,7 +129,7 @@ public class XCTraceHandler extends XCTraceHandlerBase {
     @Override
     public void startElement(String uri, String localName, String qName, Attributes attributes) {
         // check that <schema> has required table name
-        if (qName.equals("schema")) {
+        if (qName.equals(XCTraceHandlerBase.SCHEMA)) {
             String schemaName = parseName(attributes);
             if (!tableType.tableName.equals(schemaName)) {
                 throw new IllegalStateException("Results contains schema with unexpected name: " + schemaName);
@@ -137,32 +137,32 @@ public class XCTraceHandler extends XCTraceHandlerBase {
             return;
         }
         switch (qName) {
-            case TraceEntry.SAMPLE:
-                currentSample = new Sample();
+            case XCTraceHandlerBase.SAMPLE:
+                currentSample = new XCTraceSample();
                 break;
-            case TraceEntry.SAMPLE_TIME:
-            case TraceEntry.CYCLE_WEIGHT:
-            case TraceEntry.WEIGHT:
-            case TraceEntry.PMC_EVENT:
+            case XCTraceHandlerBase.SAMPLE_TIME:
+            case XCTraceHandlerBase.CYCLE_WEIGHT:
+            case XCTraceHandlerBase.WEIGHT:
+            case XCTraceHandlerBase.PMC_EVENT:
                 // TODO: validate only one of them is observed
                 pushCachedOrNew(attributes, id -> {
                     setNeedParseCharacters(true);
                     return new LongHolder(id);
                 });
                 break;
-            case TraceEntry.BACKTRACE:
+            case XCTraceHandlerBase.BACKTRACE:
                 pushCachedOrNew(attributes, id -> new ValueHolder<Frame>(id));
                 break;
-            case TraceEntry.BINARY:
+            case XCTraceHandlerBase.BINARY:
                 pushCachedOrNew(attributes, id -> new ValueHolder<>(id, parseName(attributes)));
                 break;
-            case TraceEntry.FRAME:
+            case XCTraceHandlerBase.FRAME:
                 // Addresses in cpu-* tables are always biased by 1, on both X86_64 and AArch64.
                 // TODO: figure out why, because kdebug tables have correct addresses.
                 pushCachedOrNew(attributes, id -> new Frame(id, parseName(attributes),
                         parseAddress(attributes) - 1L));
                 break;
-            case TraceEntry.PMC_EVENTS:
+            case XCTraceHandlerBase.PMC_EVENTS:
                 pushCachedOrNew(attributes, id -> {
                     setNeedParseCharacters(true);
                     return new ValueHolder<long[]>(id);
@@ -173,33 +173,34 @@ public class XCTraceHandler extends XCTraceHandlerBase {
 
     @Override
     public void endElement(String uri, String localName, String qName) {
-        if (qName.equals("node")) {
+        if (qName.equals(XCTraceHandlerBase.NODE)) {
             return;
         }
         switch (qName) {
-            case TraceEntry.SAMPLE:
+            case XCTraceHandlerBase.SAMPLE:
                 callback.accept(currentSample);
                 currentSample = null;
                 break;
-            case TraceEntry.SAMPLE_TIME: {
+            case XCTraceHandlerBase.SAMPLE_TIME: {
                 LongHolder value = popAndUpdateLongHolder();
-                currentSample.setTime(value);
+                currentSample.setTime(value.getValue());
                 break;
             }
-            case TraceEntry.CYCLE_WEIGHT:
-            case TraceEntry.WEIGHT:
-            case TraceEntry.PMC_EVENT:
+            case XCTraceHandlerBase.CYCLE_WEIGHT:
+            case XCTraceHandlerBase.WEIGHT:
+            case XCTraceHandlerBase.PMC_EVENT:
                 LongHolder value = popAndUpdateLongHolder();
-                currentSample.setWeight(value);
+                currentSample.setWeight(value.getValue());
                 break;
-            case TraceEntry.BACKTRACE:
-                currentSample.setBacktrace(this.<ValueHolder<Frame>>pop().getValue());
+            case XCTraceHandlerBase.BACKTRACE:
+                Frame topFrame = this.<ValueHolder<Frame>>pop().getValue();
+                currentSample.setTopFrame(topFrame.getAddress(), topFrame.getName(), topFrame.getBinary());
                 break;
-            case TraceEntry.BINARY:
+            case XCTraceHandlerBase.BINARY:
                 ValueHolder<String> bin = pop();
                 this.<Frame>peek().setBinary(bin.getValue());
                 break;
-            case TraceEntry.FRAME:
+            case XCTraceHandlerBase.FRAME:
                 Frame frame = pop();
                 ValueHolder<Frame> backtrace = peek();
                 // we only need a top frame
@@ -207,7 +208,7 @@ public class XCTraceHandler extends XCTraceHandlerBase {
                     backtrace.setValue(frame);
                 }
                 break;
-            case TraceEntry.PMC_EVENTS:
+            case XCTraceHandlerBase.PMC_EVENTS:
                 ValueHolder<long[]> events = popAndUpdateEvents();
                 currentSample.setSamples(events.getValue());
                 break;
@@ -219,5 +220,85 @@ public class XCTraceHandler extends XCTraceHandlerBase {
     public void endDocument() {
         entriesCache.clear();
         entries.clear();
+    }
+
+    static abstract class TraceElement {
+
+        private final long id;
+
+        public TraceElement(long id) {
+            this.id = id;
+        }
+
+        public long getId() {
+            return id;
+        }
+    }
+
+    static final class ValueHolder<T> extends TraceElement {
+        private T value;
+
+        ValueHolder(long id, T value) {
+            super(id);
+            this.value = value;
+        }
+
+        ValueHolder(long id) {
+            this(id, null);
+        }
+
+        public T getValue() {
+            return value;
+        }
+
+        public void setValue(T value) {
+            this.value = value;
+        }
+    }
+
+    static final class LongHolder extends TraceElement {
+        private long value = 0;
+
+        public LongHolder(long id) {
+            super(id);
+        }
+
+        public long getValue() {
+            return value;
+        }
+
+        public void setValue(long value) {
+            this.value = value;
+        }
+    }
+
+    static final class Frame extends TraceElement {
+        private final String name;
+
+        private final long address;
+
+        private String binary = null;
+
+        public Frame(long id, String name, long address) {
+            super(id);
+            this.name = name;
+            this.address = address;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public long getAddress() {
+            return address;
+        }
+
+        public String getBinary() {
+            return binary;
+        }
+
+        public void setBinary(String binary) {
+            this.binary = Objects.requireNonNull(binary, "Binary is null");
+        }
     }
 }

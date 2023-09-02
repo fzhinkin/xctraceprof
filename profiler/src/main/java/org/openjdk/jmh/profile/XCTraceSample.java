@@ -17,25 +17,51 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-package xctraceasm.xml;
+package org.openjdk.jmh.profile;
 
-import java.util.Objects;
+class XCTraceSample {
+    public static final String TIME_SAMPLE_TRIGGER_NAME = "TIME_MICRO_SEC";
+    private static final long[] EMPTY = new long[0];
 
-public class Frame extends TraceEntry {
-    private final String name ;
+    private long timeFromStartNs = 0;
+    private long weight = 0;
 
-    private final long address;
+    private String symbol = null;
+
+    private long address = 0;
 
     private String binary = null;
 
-    public Frame(long id, String name, long address) {
-        super(id);
-        this.name = name;
+    private long[] samples = EMPTY;
+
+    public void setTopFrame(long address, String symbol, String binary) {
         this.address = address;
+        this.symbol = symbol;
+        this.binary = binary;
     }
 
-    public String getName() {
-        return name;
+    public void setWeight(long weight) {
+        this.weight = weight;
+    }
+
+    public void setTime(long time) {
+        timeFromStartNs = time;
+    }
+
+    public long getTimeFromStartNs() {
+        return timeFromStartNs;
+    }
+
+    public long getWeight() {
+        return weight;
+    }
+
+    public long[] getSamples() {
+        return samples;
+    }
+
+    public void setSamples(long[] samples) {
+        this.samples = samples;
     }
 
     public long getAddress() {
@@ -46,8 +72,7 @@ public class Frame extends TraceEntry {
         return binary;
     }
 
-    public void setBinary(String binary) {
-        this.binary = Objects.requireNonNull(binary, "Binary is null");
+    public String getSymbol() {
+        return symbol;
     }
-
 }

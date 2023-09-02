@@ -17,7 +17,7 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-package xctraceasm.xml;
+package org.openjdk.jmh.profile;
 
 import org.junit.Test;
 
@@ -26,8 +26,8 @@ import java.util.List;
 
 import static org.junit.Assert.*;
 
-public class TocHandlerTest extends XmlTestBase {
-    private final TableOfContentsHandler handler = new TableOfContentsHandler();
+public class XCTraceTableOfContentsHandlerTest extends XmlTestBase {
+    private final XCTraceTableOfContentsHandler handler = new XCTraceTableOfContentsHandler();
 
     @Test
     public void parseDocumentWithoutToc() throws Exception {
@@ -38,14 +38,14 @@ public class TocHandlerTest extends XmlTestBase {
     @Test
     public void parsePmcToc() throws Exception {
         factory.newSAXParser().parse(openResource("pmc-toc.xml"), handler);
-        List<TableDesc> tables = handler.getSupportedTables();
+        List<XCTraceTableDesc> tables = handler.getSupportedTables();
         assertEquals(1693140580479L, handler.getRecordStartMs());
         assertEquals(1, tables.size());
 
-        TableDesc table = tables.get(0);
-        assertEquals(TableDesc.TableType.COUNTERS_PROFILE, table.getTableType());
+        XCTraceTableDesc table = tables.get(0);
+        assertEquals(XCTraceTableDesc.TableType.COUNTERS_PROFILE, table.getTableType());
 
-        assertEquals(TableDesc.TriggerType.PMI, table.getTriggerType());
+        assertEquals(XCTraceTableDesc.TriggerType.PMI, table.getTriggerType());
         assertEquals(1000000L, table.triggerThreshold());
         assertEquals("MEM_INST_RETIRED.ALL_LOADS", table.triggerEvent());
         assertEquals(Arrays.asList(
@@ -57,13 +57,13 @@ public class TocHandlerTest extends XmlTestBase {
     public void parseTimeToc() throws Exception {
         factory.newSAXParser().parse(openResource("time-toc.xml"), handler);
         assertEquals(1693153606998L, handler.getRecordStartMs());
-        List<TableDesc> tables = handler.getSupportedTables();
+        List<XCTraceTableDesc> tables = handler.getSupportedTables();
         assertEquals(1, tables.size());
 
-        TableDesc table = tables.get(0);
-        assertEquals(TableDesc.TableType.COUNTERS_PROFILE, table.getTableType());
+        XCTraceTableDesc table = tables.get(0);
+        assertEquals(XCTraceTableDesc.TableType.COUNTERS_PROFILE, table.getTableType());
 
-        assertEquals(TableDesc.TriggerType.TIME, table.getTriggerType());
+        assertEquals(XCTraceTableDesc.TriggerType.TIME, table.getTriggerType());
         assertEquals(1000L, table.triggerThreshold());
         assertEquals("TIME_MICRO_SEC", table.triggerEvent());
         assertEquals(Arrays.asList(
@@ -75,19 +75,19 @@ public class TocHandlerTest extends XmlTestBase {
     public void parseMixedToc() throws Exception {
         factory.newSAXParser().parse(openResource("mixed-toc.xml"), handler);
         assertEquals(1693153762702L, handler.getRecordStartMs());
-        List<TableDesc> tables = handler.getSupportedTables();
+        List<XCTraceTableDesc> tables = handler.getSupportedTables();
         assertEquals(2, tables.size());
 
-        assertTrue(tables.stream().anyMatch(t -> t.getTableType() == TableDesc.TableType.COUNTERS_PROFILE));
-        assertTrue(tables.stream().anyMatch(t -> t.getTableType() == TableDesc.TableType.CPU_PROFILE));
+        assertTrue(tables.stream().anyMatch(t -> t.getTableType() == XCTraceTableDesc.TableType.COUNTERS_PROFILE));
+        assertTrue(tables.stream().anyMatch(t -> t.getTableType() == XCTraceTableDesc.TableType.CPU_PROFILE));
     }
 
     @Test
     public void parseCpuProfileToc() throws Exception {
         factory.newSAXParser().parse(openResource("cpu-prof-toc.xml"), handler);
         assertEquals(1693158302632L, handler.getRecordStartMs());
-        List<TableDesc> tables = handler.getSupportedTables();
+        List<XCTraceTableDesc> tables = handler.getSupportedTables();
         assertEquals(1, tables.size());
-        assertEquals(TableDesc.TableType.CPU_PROFILE, tables.get(0).getTableType());
+        assertEquals(XCTraceTableDesc.TableType.CPU_PROFILE, tables.get(0).getTableType());
     }
 }
