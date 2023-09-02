@@ -29,13 +29,9 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 // TODO: validate the document
-public class TableOfContentsHandler extends DefaultHandler {
+public class TableOfContentsHandler extends XCTraceHandlerBase {
     private static final DateTimeFormatter TOC_DATE_FORMAT = DateTimeFormatter.ISO_OFFSET_DATE_TIME;
     private final List<TableDesc> supportedTables = new ArrayList<>();
-
-    private final StringBuilder builder = new StringBuilder();
-
-    private boolean recordChars = false;
 
     private long recordStartMs;
 
@@ -49,9 +45,7 @@ public class TableOfContentsHandler extends DefaultHandler {
 
     @Override
     public void startElement(String uri, String localName, String qName, Attributes attributes) {
-        if (qName.equals("start-date")) {
-            recordChars = true;
-        }
+        setNeedParseCharacters(qName.equals("start-date"));
         if (!qName.equals("table")) {
             return;
         }
@@ -70,18 +64,12 @@ public class TableOfContentsHandler extends DefaultHandler {
         if (!qName.equals("start-date")) {
             return;
         }
-        recordChars = false;
         try {
-            recordStartMs = Instant.from(TOC_DATE_FORMAT.parse(builder.toString())).toEpochMilli();
+            recordStartMs = Instant.from(TOC_DATE_FORMAT.parse(getCharacters())).toEpochMilli();
         } catch (DateTimeParseException e) {
             throw new IllegalStateException(e);
-        }
-    }
-
-    @Override
-    public void characters(char[] ch, int start, int length) {
-        if (recordChars) {
-            builder.append(ch, start, length);
+        } finally {
+            setNeedParseCharacters(false);
         }
     }
 

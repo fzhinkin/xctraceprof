@@ -20,13 +20,12 @@
 package xctraceasm.xml;
 
 import org.xml.sax.Attributes;
-import org.xml.sax.helpers.DefaultHandler;
 
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-public class XCTraceHandler extends DefaultHandler {
+public class XCTraceHandler extends XCTraceHandlerBase {
     private final TableDesc.TableType tableType;
 
     private final Map<Long, TraceEntry> entriesCache = new HashMap<>();
@@ -35,13 +34,7 @@ public class XCTraceHandler extends DefaultHandler {
 
     private final Consumer<Sample> callback;
 
-    private final StringBuilder builder = new StringBuilder();
-
     private Sample currentSample = null;
-
-    private boolean needParse = false;
-    private boolean withinNode = false;
-
 
     private static long parseId(Attributes attributes) {
         return Long.parseLong(attributes.getValue("id"));
@@ -117,40 +110,32 @@ public class XCTraceHandler extends DefaultHandler {
 
     private LongHolder popAndUpdateLongHolder() {
         LongHolder value = pop();
-        if (needParse) {
-            value.setValue(Long.parseLong(builder.toString()));
-            builder.setLength(0);
+        if (isNeedToParseCharacters()) {
+            value.setValue(Long.parseLong(getCharacters()));
         }
         return value;
     }
 
     private ValueHolder<long[]> popAndUpdateEvents() {
         ValueHolder<long[]> value = pop();
-        if (needParse) {
-            long[] events = Arrays.stream(builder.toString().split(" "))
+        if (isNeedToParseCharacters()) {
+            long[] events = Arrays.stream(getCharacters().split(" "))
                     .mapToLong(Long::parseLong).toArray();
             value.setValue(events);
-            builder.setLength(0);
         }
         return value;
     }
 
     @Override
     public void startElement(String uri, String localName, String qName, Attributes attributes) {
-        // check that we're within <node> element
-        if (qName.equals("node")) {
-            withinNode = true;
-            return;
-        }
         // check that <schema> has required table name
-        if (withinNode && qName.equals("schema")) {
+        if (qName.equals("schema")) {
             String schemaName = parseName(attributes);
             if (!tableType.tableName.equals(schemaName)) {
                 throw new IllegalStateException("Results contains schema with unexpected name: " + schemaName);
             }
             return;
         }
-        builder.setLength(0);
         switch (qName) {
             case TraceEntry.SAMPLE:
                 currentSample = new Sample();
@@ -161,7 +146,7 @@ public class XCTraceHandler extends DefaultHandler {
             case TraceEntry.PMC_EVENT:
                 // TODO: validate only one of them is observed
                 pushCachedOrNew(attributes, id -> {
-                    needParse = true;
+                    setNeedParseCharacters(true);
                     return new LongHolder(id);
                 });
                 break;
@@ -179,17 +164,10 @@ public class XCTraceHandler extends DefaultHandler {
                 break;
             case TraceEntry.PMC_EVENTS:
                 pushCachedOrNew(attributes, id -> {
-                    needParse = true;
+                    setNeedParseCharacters(true);
                     return new ValueHolder<long[]>(id);
                 });
                 break;
-        }
-    }
-
-    @Override
-    public void characters(char[] ch, int start, int length) {
-        if (needParse) {
-            builder.append(ch, start, length);
         }
     }
 
@@ -234,7 +212,7 @@ public class XCTraceHandler extends DefaultHandler {
                 currentSample.setSamples(events.getValue());
                 break;
         }
-        needParse = false;
+        setNeedParseCharacters(false);
     }
 
     @Override
