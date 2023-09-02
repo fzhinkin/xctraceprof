@@ -110,16 +110,6 @@ public class XCTraceAsmProfiler extends AbstractPerfAsmProfiler {
                 .withOptionalArg().ofType(String.class);
     }
 
-    private Path getRunPath() {
-        try (Stream<Path> files = Files.list(perfBinData.file().toPath())) {
-            return files
-                    .filter(path -> path.getFileName().toString().startsWith("Launch"))
-                    .collect(Collectors.toList()).get(0);
-        } catch (IOException e) {
-            throw new IllegalStateException(e);
-        }
-    }
-
     private TableDesc.TableType chooseTable(Path profile) {
         XCTraceUtils.exportTableOfContents(profile.toAbsolutePath().toString(), perfParsedData.getAbsolutePath());
         try {
@@ -148,7 +138,7 @@ public class XCTraceAsmProfiler extends AbstractPerfAsmProfiler {
 
     @Override
     protected void parseEvents() {
-        Path profile = getRunPath();
+        Path profile = XCTraceUtils.findTraceFile(perfBinData.file().toPath());
         foundTable = chooseTable(profile);
         XCTraceUtils.exportTable(profile.toAbsolutePath().toString(), perfParsedData.getAbsolutePath(), foundTable);
     }

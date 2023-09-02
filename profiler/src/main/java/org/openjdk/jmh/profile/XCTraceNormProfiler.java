@@ -26,9 +26,7 @@ import org.openjdk.jmh.infra.BenchmarkParams;
 import org.openjdk.jmh.results.*;
 import org.openjdk.jmh.util.FileUtils;
 import org.openjdk.jmh.util.TempFile;
-import org.openjdk.jmh.util.Utils;
 import org.xml.sax.SAXException;
-import xctraceasm.xml.CountersProfileTableDesc;
 import xctraceasm.xml.TableDesc;
 import xctraceasm.xml.TableOfContentsHandler;
 import xctraceasm.xml.XCTraceHandler;
@@ -37,17 +35,11 @@ import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.parsers.SAXParserFactory;
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.SimpleFileVisitor;
-import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class XCTraceNormProfiler implements ExternalProfiler {
     private final String template;
@@ -101,20 +93,11 @@ public class XCTraceNormProfiler implements ExternalProfiler {
         }
     }
 
-    private Path getRunPath() {
-        try (Stream<Path> files = Files.list(temporaryFolder)) {
-            return files
-                    .filter(path -> path.getFileName().toString().startsWith("Launch"))
-                    .collect(Collectors.toList()).get(0);
-        } catch (IOException e) {
-            throw new IllegalStateException(e);
-        }
-    }
 
     @Override
     public Collection<? extends Result> afterTrial(BenchmarkResult br, long pid, File stdOut, File stdErr) {
         TableDesc.TableType table = TableDesc.TableType.COUNTERS_PROFILE;
-        Path traceFile = getRunPath();
+        Path traceFile = XCTraceUtils.findTraceFile(temporaryFolder);
         XCTraceUtils.exportTableOfContents(traceFile.toAbsolutePath().toString(), outputFile.getAbsolutePath());
         TableOfContentsHandler tocHandler = new TableOfContentsHandler();
         try {
@@ -122,13 +105,13 @@ public class XCTraceNormProfiler implements ExternalProfiler {
         } catch (ParserConfigurationException | SAXException | IOException e) {
             throw new IllegalStateException(e);
         }
-        CountersProfileTableDesc tableDesc = (CountersProfileTableDesc) tocHandler.getSupportedTables()
+        TableDesc tableDesc = tocHandler.getSupportedTables()
                 .stream()
                 .filter(t -> t.getTableType() == table)
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("Table \"" + table.tableName +
                         "\" was not found in the trace results."));
-        if (tableDesc.counters().isEmpty() && tableDesc.getTriggerType() == CountersProfileTableDesc.TriggerType.TIME) {
+        if (tableDesc.counters().isEmpty() && tableDesc.getTriggerType() == TableDesc.TriggerType.TIME) {
             throw new IllegalStateException("Results does not contain any events.");
         }
         XCTraceUtils.exportTable(traceFile.toAbsolutePath().toString(), outputFile.getAbsolutePath(), table);
@@ -183,7 +166,7 @@ public class XCTraceNormProfiler implements ExternalProfiler {
             results.add(new ScalarResult(event, aggregatedEvents[i],
                     "#/op", AggregationPolicy.AVG));
         }
-        if (tableDesc.getTriggerType() == CountersProfileTableDesc.TriggerType.PMI) {
+        if (tableDesc.getTriggerType() == TableDesc.TriggerType.PMI) {
             results.add(new ScalarResult(tableDesc.triggerEvent(),
                     aggregatedEvents[aggregatedEvents.length - 1],
                     "#/op", AggregationPolicy.AVG));

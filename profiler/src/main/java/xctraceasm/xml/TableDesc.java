@@ -19,8 +19,13 @@
 
 package xctraceasm.xml;
 
-public abstract class TableDesc {
-    public static final TableDesc CPU_PROFILE = new CpuProfileTableDesc();
+import java.util.Collections;
+import java.util.List;
+
+public class TableDesc {
+    public static final TableDesc CPU_PROFILE = new TableDesc(TableType.CPU_PROFILE);
+    public static final TableDesc TIME_PROFILE = new TableDesc(TableType.TIME_PROFILE);
+
     public enum TableType {
         TIME_PROFILE("time-profile"),
         CPU_PROFILE("cpu-profile"),
@@ -34,20 +39,48 @@ public abstract class TableDesc {
 
     }
 
+    public enum TriggerType {
+        TIME,
+        PMI,
+        UNKNOWN
+    }
+
     private final TableType tableType;
+    private final TriggerType triggerType;
+    private final List<String> counters;
+    private final String trigger;
+    private final long threshold;
+
+    public TableDesc(TableType tableType, TriggerType triggerType, List<String> counters, String trigger, long threshold) {
+        this.tableType = tableType;
+        this.triggerType = triggerType;
+        this.counters = counters;
+        this.trigger = trigger;
+        this.threshold = threshold;
+    }
 
     public TableDesc(TableType tableType) {
-        this.tableType = tableType;
+        this(tableType, TriggerType.UNKNOWN, Collections.emptyList(), "", -1);
     }
 
     public TableType getTableType() {
         return tableType;
     }
-}
 
-class CpuProfileTableDesc extends TableDesc {
-    public CpuProfileTableDesc() {
-        super(TableType.CPU_PROFILE);
+    public TriggerType getTriggerType() {
+        return triggerType;
+    }
+
+    public List<String> counters() {
+        return counters;
+    }
+
+    public String triggerEvent() {
+        return trigger;
+    }
+
+    public long triggerThreshold() {
+        return threshold;
     }
 }
 

@@ -45,13 +45,12 @@ public class TocHandlerTest extends XmlTestBase {
         TableDesc table = tables.get(0);
         assertEquals(TableDesc.TableType.COUNTERS_PROFILE, table.getTableType());
 
-        CountersProfileTableDesc pmcTable = (CountersProfileTableDesc) table;
-        assertEquals(CountersProfileTableDesc.TriggerType.PMI, pmcTable.getTriggerType());
-        assertEquals(1000000L, pmcTable.triggerThreshold());
-        assertEquals("MEM_INST_RETIRED.ALL_LOADS", pmcTable.triggerEvent());
+        assertEquals(TableDesc.TriggerType.PMI, table.getTriggerType());
+        assertEquals(1000000L, table.triggerThreshold());
+        assertEquals("MEM_INST_RETIRED.ALL_LOADS", table.triggerEvent());
         assertEquals(Arrays.asList(
                 "L1D_CACHE_MISS_LD", "MEM_LOAD_RETIRED.L1_HIT"
-        ), pmcTable.counters());
+        ), table.counters());
     }
 
     @Test
@@ -64,13 +63,12 @@ public class TocHandlerTest extends XmlTestBase {
         TableDesc table = tables.get(0);
         assertEquals(TableDesc.TableType.COUNTERS_PROFILE, table.getTableType());
 
-        CountersProfileTableDesc timeTable = (CountersProfileTableDesc) table;
-        assertEquals(CountersProfileTableDesc.TriggerType.TIME, timeTable.getTriggerType());
-        assertEquals(1000L, timeTable.triggerThreshold());
-        assertEquals("TIME_MICRO_SEC", timeTable.triggerEvent());
+        assertEquals(TableDesc.TriggerType.TIME, table.getTriggerType());
+        assertEquals(1000L, table.triggerThreshold());
+        assertEquals("TIME_MICRO_SEC", table.triggerEvent());
         assertEquals(Arrays.asList(
                 "INST_ALL", "CORE_ACTIVE_CYCLE", "INST_BRANCH"
-        ), timeTable.counters());
+        ), table.counters());
     }
 
     @Test

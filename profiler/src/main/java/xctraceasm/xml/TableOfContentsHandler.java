@@ -75,12 +75,14 @@ public class TableOfContentsHandler extends XCTraceHandlerBase {
 
     private void parseCountersProfile(Attributes attributes) {
         String trigger = Objects.requireNonNull(attributes.getValue("trigger"));
-        CountersProfileTableDesc.TriggerType triggerType = CountersProfileTableDesc.TriggerType.valueOf(trigger.toUpperCase());
+        TableDesc.TriggerType triggerType = TableDesc.TriggerType.valueOf(trigger.toUpperCase());
 
-        if (triggerType == CountersProfileTableDesc.TriggerType.PMI) {
+        if (triggerType == TableDesc.TriggerType.PMI) {
             parsePmiSampleTable(attributes);
-        } else if (triggerType == CountersProfileTableDesc.TriggerType.TIME) {
+        } else if (triggerType == TableDesc.TriggerType.TIME) {
             parseTimeSampleTable(attributes);
+        } else {
+            throw new IllegalStateException("Unsupported trigger type: " + triggerType);
         }
     }
 
@@ -92,7 +94,7 @@ public class TableOfContentsHandler extends XCTraceHandlerBase {
         }
         long threshold = Long.parseLong(Objects.requireNonNull(attributes.getValue("pmi-threshold"),
                 "Trigger threshold not found"));
-        CountersProfileTableDesc table = new CountersProfileTableDesc(CountersProfileTableDesc.TriggerType.PMI,
+        TableDesc table = new TableDesc(TableDesc.TableType.COUNTERS_PROFILE, TableDesc.TriggerType.PMI,
                 parseEvents(attributes), pmiEvent, threshold);
         supportedTables.add(table);
     }
@@ -100,7 +102,7 @@ public class TableOfContentsHandler extends XCTraceHandlerBase {
     private void parseTimeSampleTable(Attributes attributes) {
         long threshold = Long.parseLong(Objects.requireNonNull(attributes.getValue("sample-rate-micro-seconds"),
                 "Trigger threshold not found"));
-        CountersProfileTableDesc table = new CountersProfileTableDesc(CountersProfileTableDesc.TriggerType.TIME,
+        TableDesc table = new TableDesc(TableDesc.TableType.COUNTERS_PROFILE, TableDesc.TriggerType.TIME,
                 parseEvents(attributes), "TIME_MICRO_SEC", threshold);
         supportedTables.add(table);
     }

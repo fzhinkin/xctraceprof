@@ -22,8 +22,14 @@ package org.openjdk.jmh.profile;
 import org.openjdk.jmh.util.Utils;
 import xctraceasm.xml.TableDesc;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 final class XCTraceUtils {
     private XCTraceUtils() {
@@ -67,6 +73,21 @@ final class XCTraceUtils {
         Collection<String> out = Utils.tryWith("xctrace", "version");
         if (!out.isEmpty()) {
             throw new ProfilerException(out.toString());
+        }
+    }
+
+    public static Path findTraceFile(Path parent) {
+        try (Stream<Path> files = Files.list(parent)) {
+            List<Path> launchFiles = files
+                    .filter(path -> path.getFileName().toString().startsWith("Launch"))
+                    .collect(Collectors.toList());
+            if (launchFiles.size() != 1) {
+                throw new IllegalStateException("Expected only one launch file, found " +
+                        + launchFiles.size() + ": " + launchFiles);
+            }
+            return launchFiles.get(0);
+        } catch (IOException e) {
+            throw new IllegalStateException(e);
         }
     }
 }
