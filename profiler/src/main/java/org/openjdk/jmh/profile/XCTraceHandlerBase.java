@@ -19,7 +19,14 @@
 
 package org.openjdk.jmh.profile;
 
+import org.xml.sax.SAXException;
 import org.xml.sax.helpers.DefaultHandler;
+
+import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.parsers.SAXParserFactory;
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Path;
 
 class XCTraceHandlerBase extends DefaultHandler {
     public static final String SAMPLE = "row";
@@ -66,5 +73,13 @@ class XCTraceHandlerBase extends DefaultHandler {
 
     protected final boolean isNeedToParseCharacters() {
         return isNeedToParseCharacters;
+    }
+
+    public final void parse(File file) {
+        try {
+            SAXParserFactory.newInstance().newSAXParser().parse(file, this);
+        } catch (ParserConfigurationException | SAXException | IOException e) {
+            throw new IllegalStateException(e);
+        }
     }
 }

@@ -56,7 +56,7 @@ class XCTraceSample {
         return weight;
     }
 
-    public long[] getSamples() {
+    public long[] getPmcCounters() {
         return samples;
     }
 

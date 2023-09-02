@@ -48,7 +48,7 @@ public class XCTraceTableHandlerTest extends XmlTestBase {
         XCTraceSample first = samples.get(1);
         assertEquals(465925290L, first.getTimeFromStartNs());
         assertEquals(414498L, first.getWeight());
-        assertEquals(0, first.getSamples().length);
+        assertEquals(0, first.getPmcCounters().length);
         assertEquals(0x1069dcf60L, first.getAddress());
         assertEquals("a", first.getSymbol());
         assertEquals("a.out", first.getBinary());
@@ -56,7 +56,7 @@ public class XCTraceTableHandlerTest extends XmlTestBase {
         XCTraceSample next = samples.get(166);
         assertEquals(515200163L, next.getTimeFromStartNs());
         assertEquals(1000381L, next.getWeight());
-        assertEquals(0, next.getSamples().length);
+        assertEquals(0, next.getPmcCounters().length);
         assertEquals("c", next.getSymbol());
     }
 
@@ -79,7 +79,7 @@ public class XCTraceTableHandlerTest extends XmlTestBase {
         assertEquals(434050426L, first.getTimeFromStartNs());
         assertEquals(0x10e403d73L, first.getAddress());
         assertEquals(1000000L, first.getWeight());
-        assertArrayEquals(new long[]{40L, 4770L}, first.getSamples());
+        assertArrayEquals(new long[]{40L, 4770L}, first.getPmcCounters());
     }
 
     @Test
@@ -93,6 +93,6 @@ public class XCTraceTableHandlerTest extends XmlTestBase {
         assertEquals(402129330L, first.getTimeFromStartNs());
         assertEquals(0L, first.getAddress());
         assertEquals(1000000L, first.getWeight());
-        assertArrayEquals(new long[]{120029L, 214575L}, first.getSamples());
+        assertArrayEquals(new long[]{120029L, 214575L}, first.getPmcCounters());
     }
 }

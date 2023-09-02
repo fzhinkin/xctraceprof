@@ -26,10 +26,7 @@ import org.openjdk.jmh.infra.BenchmarkParams;
 import org.openjdk.jmh.results.*;
 import org.openjdk.jmh.util.FileUtils;
 import org.openjdk.jmh.util.TempFile;
-import org.xml.sax.SAXException;
 
-import javax.xml.parsers.ParserConfigurationException;
-import javax.xml.parsers.SAXParserFactory;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -37,8 +34,10 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
 public class XCTraceNormProfiler implements ExternalProfiler {
+    private static final XCTraceTableDesc.TableType SUPPORTED_TABLE_TYPE = XCTraceTableDesc.TableType.COUNTERS_PROFILE;
     private final String template;
 
     private final Path temporaryFolder;
@@ -90,84 +89,76 @@ public class XCTraceNormProfiler implements ExternalProfiler {
         }
     }
 
-    @Override
-    public Collection<? extends Result> afterTrial(BenchmarkResult br, long pid, File stdOut, File stdErr) {
-        XCTraceTableDesc.TableType table = XCTraceTableDesc.TableType.COUNTERS_PROFILE;
-        Path traceFile = XCTraceUtils.findTraceFile(temporaryFolder);
-        XCTraceUtils.exportTableOfContents(traceFile.toAbsolutePath().toString(), outputFile.getAbsolutePath());
-        XCTraceTableOfContentsHandler tocHandler = new XCTraceTableOfContentsHandler();
-        try {
-            SAXParserFactory.newInstance().newSAXParser().parse(outputFile.file(), tocHandler);
-        } catch (ParserConfigurationException | SAXException | IOException e) {
-            throw new IllegalStateException(e);
-        }
+    private XCTraceTableDesc findTableDescription(XCTraceTableOfContentsHandler tocHandler) {
         XCTraceTableDesc tableDesc = tocHandler.getSupportedTables()
                 .stream()
-                .filter(t -> t.getTableType() == table)
+                .filter(t -> t.getTableType() == SUPPORTED_TABLE_TYPE)
                 .findFirst()
-                .orElseThrow(() -> new IllegalStateException("Table \"" + table.tableName +
+                .orElseThrow(() -> new IllegalStateException("Table \"" + SUPPORTED_TABLE_TYPE.tableName +
                         "\" was not found in the trace results."));
         if (tableDesc.counters().isEmpty() && tableDesc.getTriggerType() == XCTraceTableDesc.TriggerType.TIME) {
             throw new IllegalStateException("Results does not contain any events.");
         }
-        XCTraceUtils.exportTable(traceFile.toAbsolutePath().toString(), outputFile.getAbsolutePath(), table);
+        return tableDesc;
+    }
 
+    @Override
+    public Collection<? extends Result> afterTrial(BenchmarkResult br, long pid, File stdOut, File stdErr) {
         BenchmarkResultMetaData md = br.getMetadata();
         if (md == null) {
-            throw new UnsupportedOperationException();
+            return Collections.emptyList();
         }
-        long driftMs = tocHandler.getRecordStartMs() - md.getStartTime();
-        long skipNs = (ProfilerUtils.measurementDelayMs(br) - driftMs) * 1000000;
+        long measurementsDurationMs = md.getStopTime() - md.getMeasurementTime();
+        if (measurementsDurationMs == 0L) {
+            return Collections.emptyList();
+        }
+        double opsThroughput = md.getMeasurementOps() / (double) measurementsDurationMs;
+
+        Path traceFile = XCTraceUtils.findTraceFile(temporaryFolder);
+        XCTraceUtils.exportTableOfContents(traceFile.toAbsolutePath().toString(), outputFile.getAbsolutePath());
+
+        XCTraceTableOfContentsHandler tocHandler = new XCTraceTableOfContentsHandler();
+        tocHandler.parse(outputFile.file());
+        XCTraceTableDesc tableDesc = findTableDescription(tocHandler);
+        XCTraceUtils.exportTable(traceFile.toAbsolutePath().toString(), outputFile.getAbsolutePath(),
+                SUPPORTED_TABLE_TYPE);
+
+        // TODO: describe what is going on
+        long startupDelayMs = tocHandler.getRecordStartMs() - md.getStartTime();
+        long skipNs = (ProfilerUtils.measurementDelayMs(br) - startupDelayMs) * 1000000;
         long durationNs = ProfilerUtils.measuredTimeMs(br) * 1000000;
 
-        double[] aggregatedEvents = new double[tableDesc.counters().size() + 1];
-        long[] duration = new long[] { Long.MAX_VALUE, Long.MIN_VALUE };
-        long[] samplesCount = new long[1];
-        XCTraceTableHandler handler = new XCTraceTableHandler(table, sample -> {
+        AggregatedEvents aggregator = new AggregatedEvents(tableDesc);
+        new XCTraceTableHandler(SUPPORTED_TABLE_TYPE, sample -> {
             if (sample.getTimeFromStartNs() <= skipNs || sample.getTimeFromStartNs() > skipNs + durationNs) {
                 return;
             }
 
-            long[] counters = sample.getSamples();
-            for (int i = 0; i < counters.length; i++) {
-                aggregatedEvents[i] += counters[i];
-            }
-            aggregatedEvents[aggregatedEvents.length - 1] = sample.getWeight();
-            duration[0] = Math.min(duration[0], sample.getTimeFromStartNs());
-            duration[1] = Math.max(duration[1], sample.getTimeFromStartNs());
-            samplesCount[0]++;
-        });
+            aggregator.add(sample);
+        }).parse(outputFile.file());
+
         try {
-            SAXParserFactory.newInstance().newSAXParser().parse(outputFile.file(), handler);
             TempFileUtils.removeDirectory(temporaryFolder);
-        } catch (ParserConfigurationException | SAXException | IOException e) {
+        } catch (IOException e) {
             throw new IllegalStateException(e);
         }
 
-        long timeMs = md.getStopTime() - md.getMeasurementTime();
-        if (timeMs == 0L) {
-            throw new UnsupportedOperationException();
+        if (aggregator.eventsCount == 0) {
+            return Collections.emptyList();
         }
-
-        double timeSpanMs = (duration[1] - duration[0]) / 1e6;
-        // TODO: validate timeSpan
-        double opsThroughput = md.getMeasurementOps() / (double) timeMs;
-        for (int i = 0; i < aggregatedEvents.length; i++) {
-            aggregatedEvents[i] = aggregatedEvents[i] / timeSpanMs / opsThroughput;
-        }
+        aggregator.normalizeByThroughput(opsThroughput);
 
         Collection<Result<?>> results = new ArrayList<>();
         for (int i = 0; i < tableDesc.counters().size(); i++) {
             String event = tableDesc.counters().get(i);
-            results.add(new ScalarResult(event, aggregatedEvents[i],
+            results.add(new ScalarResult(event, aggregator.eventValues[i],
                     "#/op", AggregationPolicy.AVG));
         }
         if (tableDesc.getTriggerType() == XCTraceTableDesc.TriggerType.PMI) {
             results.add(new ScalarResult(tableDesc.triggerEvent(),
-                    aggregatedEvents[aggregatedEvents.length - 1],
+                    aggregator.eventValues[aggregator.eventValues.length - 1],
                     "#/op", AggregationPolicy.AVG));
         }
-        results.add(new ScalarResult("TOTAL_SAMPLES", samplesCount[0], "#", AggregationPolicy.SUM));
         return results;
     }
 
@@ -184,5 +175,42 @@ public class XCTraceNormProfiler implements ExternalProfiler {
     @Override
     public String getDescription() {
         return "XCTrace PMU counters statistics, normalized by operation count";
+    }
+
+    private static class AggregatedEvents {
+        final List<String> eventNames;
+        final double[] eventValues;
+        long eventsCount = 0;
+
+        long minTimestampMs = Long.MAX_VALUE;
+        long maxTimestampMs = Long.MIN_VALUE;
+
+        public AggregatedEvents(XCTraceTableDesc tableDesc) {
+            List<String> names = new ArrayList<>(tableDesc.counters());
+            names.add(tableDesc.triggerEvent());
+            eventNames = Collections.unmodifiableList(names);
+            eventValues = new double[eventNames.size()];
+        }
+
+        void add(XCTraceSample sample) {
+            long[] counters = sample.getPmcCounters();
+            for (int i = 0; i < counters.length; i++) {
+                eventValues[i] += counters[i];
+            }
+            eventValues[eventValues.length - 1] = sample.getWeight();
+            minTimestampMs = Math.min(minTimestampMs, sample.getTimeFromStartNs());
+            maxTimestampMs = Math.max(maxTimestampMs, sample.getTimeFromStartNs());
+            eventsCount++;
+        }
+
+        void normalizeByThroughput(double throughput) {
+            if (maxTimestampMs == minTimestampMs) {
+                throw new IllegalStateException("Min and max timestamps are the same.");
+            }
+            double timeSpanMs =  (maxTimestampMs - minTimestampMs) / 1e6;
+            for (int i = 0; i < eventValues.length; i++) {
+                eventValues[i] = eventValues[i] / timeSpanMs / throughput;
+            }
+        }
     }
 }

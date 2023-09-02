@@ -105,28 +105,24 @@ public class XCTraceAsmProfiler extends AbstractPerfAsmProfiler {
 
     private XCTraceTableDesc.TableType chooseTable(Path profile) {
         XCTraceUtils.exportTableOfContents(profile.toAbsolutePath().toString(), perfParsedData.getAbsolutePath());
-        try {
-            XCTraceTableOfContentsHandler handler = new XCTraceTableOfContentsHandler();
-            SAXParserFactory.newInstance().newSAXParser().parse(perfParsedData.file(), handler);
-            List<XCTraceTableDesc> tables = handler.getSupportedTables();
-            if (tables.isEmpty()) {
-                throw new IllegalStateException("Profiling results does not contain table supported by this profiler.");
-            }
-            if (tableType != null) {
-                return tables.stream()
-                        .filter(t -> t.getTableType() == tableType)
-                        .findFirst()
-                        .orElseThrow(() -> new IllegalStateException("Results table not found: " + tableType.tableName))
-                        .getTableType();
-            }
-            if (tables.size() != 1) {
-                throw new IllegalStateException("There are multiple supported tables in output, " +
-                        "please specify which one to use using \"table\" option");
-            }
-            return tables.get(0).getTableType();
-        } catch (IOException | ParserConfigurationException | SAXException e) {
-            throw new IllegalStateException(e);
+        XCTraceTableOfContentsHandler handler = new XCTraceTableOfContentsHandler();
+        handler.parse(perfParsedData.file());
+        List<XCTraceTableDesc> tables = handler.getSupportedTables();
+        if (tables.isEmpty()) {
+            throw new IllegalStateException("Profiling results does not contain table supported by this profiler.");
         }
+        if (tableType != null) {
+            return tables.stream()
+                    .filter(t -> t.getTableType() == tableType)
+                    .findFirst()
+                    .orElseThrow(() -> new IllegalStateException("Results table not found: " + tableType.tableName))
+                    .getTableType();
+        }
+        if (tables.size() != 1) {
+            throw new IllegalStateException("There are multiple supported tables in output, " +
+                    "please specify which one to use using \"table\" option");
+        }
+        return tables.get(0).getTableType();
     }
 
     @Override
@@ -180,6 +176,7 @@ public class XCTraceAsmProfiler extends AbstractPerfAsmProfiler {
             if (sample.getBinary() != null) {
                 String name = sample.getBinary();
                 if (name.isEmpty()) {
+                    // TODO
                     name = "[unknown]";
                     throw new IllegalStateException();
                 }
