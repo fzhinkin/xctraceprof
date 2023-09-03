@@ -45,7 +45,7 @@ public class XCTraceNormProfiler implements ExternalProfiler {
     private final TempFile outputFile;
 
     public XCTraceNormProfiler() throws ProfilerException {
-        this("CPU Counters");
+        this("template=CPU Counters");
     }
 
     public XCTraceNormProfiler(String initLine) throws ProfilerException {
