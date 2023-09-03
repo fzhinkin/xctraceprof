@@ -47,7 +47,15 @@ dependencies {
 
 For Maven-based projects:
 
-TODO
+```xml
+<dependencies>
+    <dependency>
+        <groupId>io.github.fzhinkin</groupId>
+        <artifactId>xctraceprof</artifactId>
+        <version>0.0.1</version>
+    </dependency>
+</dependencies>
+```
 
 ###
 
