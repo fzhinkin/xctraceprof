@@ -26,7 +26,6 @@ import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.parsers.SAXParserFactory;
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Path;
 
 class XCTraceHandlerBase extends DefaultHandler {
     public static final String SAMPLE = "row";
