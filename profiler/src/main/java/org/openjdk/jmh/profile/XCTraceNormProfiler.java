@@ -54,6 +54,7 @@ public class XCTraceNormProfiler implements ExternalProfiler {
 
         OptionSpec<String> templateOpt = parser.accepts("template",
                         "Name of or path to Instruments template. " +
+                                "Use `xctrace list templates` to view available templates. " +
                                 "Only templates with \"CPU Counters\" instrument are supported at the moment.")
                 .withRequiredArg().ofType(String.class);
 
@@ -174,7 +175,7 @@ public class XCTraceNormProfiler implements ExternalProfiler {
 
     @Override
     public String getDescription() {
-        return "XCTrace PMU counters statistics, normalized by operation count";
+        return "MacOS xctrace (Instruments) PMU counter statistics, normalized by operation count";
     }
 
     private static class AggregatedEvents {
