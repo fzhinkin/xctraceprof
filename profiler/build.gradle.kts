@@ -32,7 +32,7 @@ publishing {
         create<MavenPublication>("maven") {
             groupId = "io.github.fzhinkin"
             artifactId = "xctraceprof"
-            version = "0.0.2-SNAPSHOT"
+            version = "0.0.2"
 
             from(components["java"])
 

@@ -44,7 +44,7 @@ Refer to [JMH docs](https://github.com/openjdk/jmh/blob/master/README.md) for de
 For Gradle-based projects:
 ```kotlin
 dependencies {
-    implementation("io.github.fzhinkin:xctraceprof:0.0.1")
+    implementation("io.github.fzhinkin:xctraceprof:0.0.2")
 }
 ```
 
@@ -55,7 +55,7 @@ For Maven-based projects:
     <dependency>
         <groupId>io.github.fzhinkin</groupId>
         <artifactId>xctraceprof</artifactId>
-        <version>0.0.1</version>
+        <version>0.0.2</version>
     </dependency>
 </dependencies>
 ```
