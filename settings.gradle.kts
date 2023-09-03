@@ -1,4 +1,4 @@
-rootProject.name = "XCTraceAsmProfiler"
+rootProject.name = "xctraceprof"
 
 pluginManagement {
     repositories {

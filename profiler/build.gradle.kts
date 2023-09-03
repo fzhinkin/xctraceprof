@@ -37,7 +37,7 @@ publishing {
             pom {
                 name.set("XCTrace JMH profilers")
                 description.set("Collection of JHM profiling using XCode Instruments as the underlying profiler.")
-                url.set("https://github.com/fzhinkin/XCTraceAsmProfiler")
+                url.set("https://github.com/fzhinkin/xctraceprof")
                 licenses {
                     license {
                         name.set("GNU General Public License, version 2")
@@ -52,9 +52,9 @@ publishing {
                     }
                 }
                 scm {
-                    developerConnection.set("scm:git:git@github.com:fzhinkin/XCTraceAsmProfiler.git")
-                    connection.set("scm:git:https://github.com/fzhinkin/XCTraceAsmProfiler.git")
-                    url.set("https://github.com/fzhinkin/XCTraceAsmProfiler")
+                    developerConnection.set("scm:git:git@github.com:fzhinkin/xctraceprof.git")
+                    connection.set("scm:git:https://github.com/fzhinkin/xctraceprof.git")
+                    url.set("https://github.com/fzhinkin/xctraceprof")
                 }
             }
         }
