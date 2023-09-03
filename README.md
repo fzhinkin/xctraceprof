@@ -1,4 +1,7 @@
 # xctraceprof
+![GitHub](https://img.shields.io/github/license/fzhinkin/xctraceprof)
+![Maven Central](https://img.shields.io/maven-central/v/io.github.fzhinkin/xctraceprof)
+
 JMH profiles based on "xctrace" utility (shipped with XCode Instruments).
 
 The goal of the project is to extend and stabilize profiler features, and then, hopefully, contribute it to JMH.
