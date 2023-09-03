@@ -41,10 +41,11 @@ public class SampleBenchmark {
     }
 
     public static void main(String[] args) throws Exception {
-        // TODO: check output's hottest region is StubRoutines::libmLog
-        run("");
-        run("template=CPU Profiler");
-        run("template=Time Profiler");
+        String initLine = "";
+        if (args.length > 0) {
+            initLine = args[0];
+        }
+        run(initLine);
     }
 
     private static void run(String initLine) throws Exception {
