@@ -1,6 +1,7 @@
 plugins {
     id("java")
     id("maven-publish")
+    id("signing")
 }
 
 dependencies {
@@ -16,6 +17,8 @@ java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(8)
     }
+    withSourcesJar()
+    withJavadocJar()
 }
 
 tasks.test {
@@ -56,4 +59,8 @@ publishing {
             }
         }
     }
+}
+
+signing {
+    sign(publishing.publications["maven"])
 }
