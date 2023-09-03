@@ -41,74 +41,57 @@ public class XCTraceTableHandlerTest extends XmlTestBase {
 
     @Test
     public void parseCpuProfile() throws Exception {
-        List<XCTraceSample> samples = new ArrayList<>();
-        XCTraceTableHandler handler = new XCTraceTableHandler(XCTraceTableDesc.TableType.CPU_PROFILE, samples::add);
-        factory.newSAXParser().parse(openResource("cpu-profile.xml"), handler);
-
-        XCTraceSample first = samples.get(1);
-        assertEquals(465925290L, first.getTimeFromStartNs());
-        assertEquals(414498L, first.getWeight());
-        assertEquals(0, first.getPmcCounters().length);
-        assertEquals(0x1069dcf60L, first.getAddress());
-        assertEquals("a", first.getSymbol());
-        assertEquals("a.out", first.getBinary());
-
-        XCTraceSample next = samples.get(166);
-        assertEquals(515200163L, next.getTimeFromStartNs());
-        assertEquals(1000381L, next.getWeight());
-        assertEquals(0, next.getPmcCounters().length);
-        assertEquals("c", next.getSymbol());
+        verifyProfile(XCTraceTableDesc.TableType.CPU_PROFILE, "cpu-profile");
     }
 
     @Test
     public void unsupportedSchema() throws Exception {
         XCTraceTableHandler handler = new XCTraceTableHandler(XCTraceTableDesc.TableType.CPU_PROFILE, sample -> fail("Expected no samples"));
-        assertThrows(IllegalStateException.class, () -> {
-            factory.newSAXParser().parse(openResource("counters-profile.xml"), handler);
-        });
+        assertThrows(IllegalStateException.class, () ->
+                factory.newSAXParser().parse(openResource("counters-profile.xml"), handler));
     }
 
     @Test
     public void parseCountersProfile() throws Exception {
-        List<XCTraceSample> samples = new ArrayList<>();
-        XCTraceTableHandler handler = new XCTraceTableHandler(XCTraceTableDesc.TableType.COUNTERS_PROFILE, samples::add);
-        factory.newSAXParser().parse(openResource("counters-profile.xml"), handler);
-
-        assertEquals(205, samples.size());
-        XCTraceSample first = samples.get(0);
-        assertEquals(434050426L, first.getTimeFromStartNs());
-        assertEquals(0x10e403d73L, first.getAddress());
-        assertEquals(1000000L, first.getWeight());
-        assertArrayEquals(new long[]{40L, 4770L}, first.getPmcCounters());
+        verifyProfile(XCTraceTableDesc.TableType.COUNTERS_PROFILE, "counters-profile");
     }
 
     @Test
     public void parseCountersTimeProfile() throws Exception {
-        List<XCTraceSample> samples = new ArrayList<>();
-        XCTraceTableHandler handler = new XCTraceTableHandler(XCTraceTableDesc.TableType.COUNTERS_PROFILE, samples::add);
-        factory.newSAXParser().parse(openResource("counters-time-profile.xml"), handler);
-
-        assertEquals(149, samples.size());
-        XCTraceSample first = samples.get(0);
-        assertEquals(402129330L, first.getTimeFromStartNs());
-        assertEquals(0L, first.getAddress());
-        assertEquals(1000000L, first.getWeight());
-        assertArrayEquals(new long[]{120029L, 214575L}, first.getPmcCounters());
+        verifyProfile(XCTraceTableDesc.TableType.COUNTERS_PROFILE, "counters-time-profile");
     }
 
     @Test
     public void parseTimeProfile() throws Exception {
-        List<XCTraceSample> samples = new ArrayList<>();
-        XCTraceTableHandler handler = new XCTraceTableHandler(XCTraceTableDesc.TableType.TIME_PROFILE, samples::add);
-        factory.newSAXParser().parse(openResource("time-profile.xml"), handler);
+        verifyProfile(XCTraceTableDesc.TableType.TIME_PROFILE, "time-profile");
+    }
 
-        assertEquals(105, samples.size());
-        XCTraceSample first = samples.get(0);
-        assertEquals(70294787L, first.getTimeFromStartNs());
-        assertEquals(1000000L, first.getWeight());
-        assertEquals(0, first.getPmcCounters().length);
-        assertEquals(0x7ff8174df51eL, first.getAddress());
-        assertEquals("_kernelrpc_mach_vm_protect_trap", first.getSymbol());
-        assertEquals("dyld", first.getBinary());
+    private void verifyProfile(XCTraceTableDesc.TableType tableType, String profileName) throws Exception {
+        List<XCTraceSample> samples = new ArrayList<>();
+        XCTraceTableHandler handler = new XCTraceTableHandler(tableType, samples::add);
+        factory.newSAXParser().parse(openResource(profileName + ".xml"), handler);
+
+        List<Object[]> expectedRows = readExpectedData(profileName + ".csv");
+        assertEquals(expectedRows.size(), samples.size());
+        for (int idx = 0; idx < expectedRows.size(); idx++) {
+            assertRowEquals(idx, expectedRows.get(idx), samples.get(idx));
+        }
+    }
+
+    private void assertRowEquals(int rowIndex, Object[] expectedRow, XCTraceSample actualRow) {
+        assertEquals("Timestamp for row " + rowIndex,
+                ((Long) expectedRow[0]).longValue(), actualRow.getTimeFromStartNs());
+        assertEquals("Weight for row " + rowIndex,
+                ((Long) expectedRow[1]).longValue(), actualRow.getWeight());
+        long expectedAddress = (Long) expectedRow[2];
+        if (expectedAddress > 0) expectedAddress--;
+        assertEquals("Address for row " + rowIndex,
+                expectedAddress, actualRow.getAddress());
+        assertEquals("Symbol for row " + rowIndex,
+                expectedRow[3], actualRow.getSymbol());
+        assertEquals("Library for row " + rowIndex,
+                expectedRow[4], actualRow.getBinary());
+        assertArrayEquals("PMC-counters for row " + rowIndex,
+                (long[]) expectedRow[5], actualRow.getPmcCounters());
     }
 }

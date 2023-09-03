@@ -20,7 +20,13 @@
 package org.openjdk.jmh.profile;
 
 import javax.xml.parsers.SAXParserFactory;
+import java.io.BufferedReader;
+import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 public abstract class XmlTestBase {
     protected final SAXParserFactory factory = SAXParserFactory.newInstance();
@@ -31,5 +37,47 @@ public abstract class XmlTestBase {
             throw new IllegalStateException("Resource not found: " + name);
         }
         return stream;
+    }
+
+    protected static List<Object[]> readExpectedData(String name) {
+        InputStream stream = XmlTestBase.class.getResourceAsStream("/" + name);
+        if (stream == null) {
+            throw new IllegalStateException("Resource not found: " + name);
+        }
+        List<Object[]> rows = new ArrayList<>();
+        long[] empty = new long[0];
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream))) {
+            while (true) {
+                String line = reader.readLine();
+                if (line == null || line.trim().isEmpty()) {
+                    break;
+                }
+                // line format:
+                // timestamp;weight;0xAddress;symbol;name;pmc-events
+                String[] partsRaw = line.split(";");
+                if (partsRaw.length > 6) {
+                    throw new IllegalStateException("Can't parse line: " + line);
+                }
+                String[] parts = Arrays.copyOf(partsRaw, 6);
+                for (int idx = partsRaw.length; idx < parts.length; idx++) {
+                    parts[idx] = "";
+                }
+                Object[] row = new Object[6];
+                row[0] = Long.parseLong(parts[0]);
+                row[1] = Long.parseLong(parts[1]);
+                row[2] = Long.parseUnsignedLong(parts[2].substring(2), 16);
+                row[3] = parts[3].isEmpty() ? null : parts[3];
+                row[4] = parts[4].isEmpty() ? null : parts[4];
+                if (parts[5].isEmpty()) {
+                    row[5] = empty;
+                } else {
+                    row[5] = Arrays.stream(parts[5].split(" ")).mapToLong(Long::parseLong).toArray();
+                }
+                rows.add(row);
+            }
+        } catch (IOException e) {
+            throw new IllegalStateException(e);
+        }
+        return rows;
     }
 }
