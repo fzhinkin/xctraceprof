@@ -1,3 +1,5 @@
+import java.net.URI
+
 plugins {
     id("java")
     id("maven-publish")
@@ -59,8 +61,31 @@ publishing {
             }
         }
     }
-}
 
-signing {
-    sign(publishing.publications["maven"])
+    repositories {
+        maven {
+            url = URI("https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/")
+            credentials {
+                username = project.findProperty("ossrh.username") as String?
+                password = project.findProperty("ossrh.password") as String?
+            }
+        }
+    }
+
+    tasks.withType<PublishToMavenRepository>().configureEach {
+        dependsOn(tasks.withType<Sign>())
+    }
+
+    publications.withType<MavenPublication>().all {
+        if (project.findProperty("signing.keyId") != null) {
+            project.extensions.configure<SigningExtension>("signing") {
+                sign(this@all)
+            }
+        }
+    }
 }
+//
+//signing {
+//    sign(publishing.publications["maven"])
+//}
+
