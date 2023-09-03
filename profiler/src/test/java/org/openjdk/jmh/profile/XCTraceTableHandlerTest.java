@@ -40,7 +40,7 @@ public class XCTraceTableHandlerTest extends XmlTestBase {
     }
 
     @Test
-    public void testSamples() throws Exception {
+    public void parseCpuProfile() throws Exception {
         List<XCTraceSample> samples = new ArrayList<>();
         XCTraceTableHandler handler = new XCTraceTableHandler(XCTraceTableDesc.TableType.CPU_PROFILE, samples::add);
         factory.newSAXParser().parse(openResource("cpu-profile.xml"), handler);
@@ -94,5 +94,21 @@ public class XCTraceTableHandlerTest extends XmlTestBase {
         assertEquals(0L, first.getAddress());
         assertEquals(1000000L, first.getWeight());
         assertArrayEquals(new long[]{120029L, 214575L}, first.getPmcCounters());
+    }
+
+    @Test
+    public void parseTimeProfile() throws Exception {
+        List<XCTraceSample> samples = new ArrayList<>();
+        XCTraceTableHandler handler = new XCTraceTableHandler(XCTraceTableDesc.TableType.TIME_PROFILE, samples::add);
+        factory.newSAXParser().parse(openResource("time-profile.xml"), handler);
+
+        assertEquals(105, samples.size());
+        XCTraceSample first = samples.get(0);
+        assertEquals(70294787L, first.getTimeFromStartNs());
+        assertEquals(1000000L, first.getWeight());
+        assertEquals(0, first.getPmcCounters().length);
+        assertEquals(0x7ff8174df51eL, first.getAddress());
+        assertEquals("_kernelrpc_mach_vm_protect_trap", first.getSymbol());
+        assertEquals("dyld", first.getBinary());
     }
 }

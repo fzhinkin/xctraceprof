@@ -90,4 +90,13 @@ public class XCTraceTableOfContentsHandlerTest extends XmlTestBase {
         assertEquals(1, tables.size());
         assertEquals(XCTraceTableDesc.TableType.CPU_PROFILE, tables.get(0).getTableType());
     }
+
+    @Test
+    public void parseTimeProfileToc() throws Exception {
+        factory.newSAXParser().parse(openResource("time-prof-toc.xml"), handler);
+        assertEquals(1693158448830L, handler.getRecordStartMs());
+        List<XCTraceTableDesc> tables = handler.getSupportedTables();
+        assertEquals(1, tables.size());
+        assertEquals(XCTraceTableDesc.TableType.TIME_PROFILE, tables.get(0).getTableType());
+    }
 }

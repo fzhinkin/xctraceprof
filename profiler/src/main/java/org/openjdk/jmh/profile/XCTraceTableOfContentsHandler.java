@@ -52,8 +52,9 @@ class XCTraceTableOfContentsHandler extends XCTraceHandlerBase {
         String schema = Objects.requireNonNull(attributes.getValue(XCTraceHandlerBase.SCHEMA), "Schema not found");
         if (schema.equals(XCTraceTableDesc.TableType.CPU_PROFILE.tableName)) {
             supportedTables.add(XCTraceTableDesc.CPU_PROFILE);
-        }
-        if (schema.equals(XCTraceTableDesc.TableType.COUNTERS_PROFILE.tableName)) {
+        } else if (schema.equals(XCTraceTableDesc.TableType.TIME_PROFILE.tableName)) {
+            supportedTables.add(XCTraceTableDesc.TIME_PROFILE);
+        } else if (schema.equals(XCTraceTableDesc.TableType.COUNTERS_PROFILE.tableName)) {
             parseCountersProfile(attributes);
         }
     }

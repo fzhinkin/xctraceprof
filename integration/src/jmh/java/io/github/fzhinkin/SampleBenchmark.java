@@ -41,14 +41,20 @@ public class SampleBenchmark {
     }
 
     public static void main(String[] args) throws Exception {
+        // TODO: check output's hottest region is StubRoutines::libmLog
+        run("");
+        run("template=CPU Profiler");
+        run("template=Time Profiler");
+    }
+
+    private static void run(String initLine) throws Exception {
         Options opt = new OptionsBuilder()
                 .include(SampleBenchmark.class.getSimpleName())
-                .addProfiler(XCTraceAsmProfiler.class)
+                .addProfiler(XCTraceAsmProfiler.class, initLine)
                 .build();
         Collection<RunResult> result = new Runner(opt).run();
         if (result.size() != 1) {
             throw new IllegalStateException("Expected 1 result, got " + result.size());
         }
-        // TODO: check output's hottest region is StubRoutines::libmLog
     }
 }
