@@ -175,7 +175,7 @@ public class XCTraceNormProfiler implements ExternalProfiler {
 
     @Override
     public String getDescription() {
-        return "MacOS xctrace (Instruments) PMU counter statistics, normalized by operation count";
+        return "macOS xctrace (Instruments) PMU counter statistics, normalized by operation count";
     }
 
     private static class AggregatedEvents {

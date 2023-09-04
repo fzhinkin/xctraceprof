@@ -221,6 +221,6 @@ public class XCTraceAsmProfiler extends AbstractPerfAsmProfiler {
 
     @Override
     public String getDescription() {
-        return "MacOS xctrace (Instruments) + PrintAssembly profiler";
+        return "macOS xctrace (Instruments) + PrintAssembly profiler";
     }
 }
