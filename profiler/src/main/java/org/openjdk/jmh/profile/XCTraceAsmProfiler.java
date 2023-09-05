@@ -69,8 +69,17 @@ public class XCTraceAsmProfiler extends AbstractPerfAsmProfiler {
         }
     }
 
+    /**
+     * Parameterless constructor to allow loading the class via ServiceLoader
+     * on all platforms. To initialize the profiler, JMH will use constructor accepting
+     * a string first, that's where the ProfilerException will be thrown if the profiler
+     * is not available on a target machine.
+     * Without it, -lprof will fail on machines where xctrace is unavailable.
+     */
     public XCTraceAsmProfiler() throws ProfilerException {
-        this("");
+        super("");
+        template = "";
+        tableType = XCTraceTableDesc.TableType.COUNTERS_PROFILE;
     }
 
     public XCTraceAsmProfiler(String initLine) throws ProfilerException {
