@@ -29,7 +29,6 @@ import org.openjdk.jmh.results.Result;
 import org.openjdk.jmh.util.*;
 
 import java.io.File;
-import java.io.IOException;
 import java.nio.file.Path;
 import java.util.*;
 
@@ -135,18 +134,15 @@ public class XCTraceAsmProfiler extends AbstractPerfAsmProfiler {
 
     @Override
     public Collection<? extends Result> afterTrial(BenchmarkResult br, long pid, File stdOut, File stdErr) {
-        BenchmarkResultMetaData md = br.getMetadata();
-        if (md != null) {
-            forkStartTimeMs = md.getStartTime();
-        }
-        Collection<? extends Result> results = super.afterTrial(br, pid, stdOut, stdErr);
         try {
+            BenchmarkResultMetaData md = br.getMetadata();
+            if (md != null) {
+                forkStartTimeMs = md.getStartTime();
+            }
+            return super.afterTrial(br, pid, stdOut, stdErr);
+        } finally {
             TempFileUtils.removeDirectory(perfBinData.file().toPath());
-        } catch (IOException e) {
-            throw new IllegalStateException(e);
         }
-
-        return results;
     }
 
     @Override

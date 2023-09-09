@@ -156,6 +156,14 @@ public class XCTraceNormProfiler implements ExternalProfiler {
 
     @Override
     public Collection<? extends Result> afterTrial(BenchmarkResult br, long pid, File stdOut, File stdErr) {
+        try {
+            return processResults(br);
+        } finally {
+            TempFileUtils.removeDirectory(temporaryFolder);
+        }
+    }
+
+    private Collection<? extends Result> processResults(BenchmarkResult br) {
         BenchmarkResultMetaData md = br.getMetadata();
         if (md == null) {
             return Collections.emptyList();
@@ -217,12 +225,6 @@ public class XCTraceNormProfiler implements ExternalProfiler {
 
             aggregator.add(sample);
         }).parse(outputFile.file());
-
-        try {
-            TempFileUtils.removeDirectory(temporaryFolder);
-        } catch (IOException e) {
-            throw new IllegalStateException(e);
-        }
 
         if (aggregator.eventsCount == 0) {
             return Collections.emptyList();
