@@ -28,14 +28,14 @@ val hasXCtrace: Boolean by lazy {
 
 tasks {
     create("runAsmProfWithDefaultArgs", JavaExec::class.java) {
-        onlyIf { hasXCtrace }
+        onlyIf { hasXCtrace && !project.hasProperty("noPMU") }
         dependsOn.add("jmhJar")
 
         classpath += jmhJar.get().outputs.files
         mainClass = "io.github.fzhinkin.XCTraceAsmProfilerTest"
     }
     create("runAsmProfWithExplicitCpuProfiler", JavaExec::class.java) {
-        onlyIf { hasXCtrace }
+        onlyIf { hasXCtrace && !project.hasProperty("noPMU") }
         dependsOn.add("jmhJar")
         classpath += jmhJar.get().outputs.files
         mainClass = "io.github.fzhinkin.XCTraceAsmProfilerTest"
