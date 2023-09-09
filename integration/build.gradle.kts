@@ -51,8 +51,8 @@ tasks {
         val path = System.getenv("PATH")
 
         // use xctrace shell wrapper inserting 15 seconds delay before executing the record command
-        val pathPrefix = fileTree(buildDir).filter {
-            it.name.equals("xctrace")
+        val pathPrefix = fileTree(projectDir).matching {
+            include("**/src/jmh/resources/xctrace")
         }.singleFile.parent
         environment("PATH", "$pathPrefix:$path")
     }
