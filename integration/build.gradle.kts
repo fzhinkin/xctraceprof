@@ -1,3 +1,4 @@
+import org.gradle.process.internal.ExecException
 import java.io.ByteArrayOutputStream
 import java.lang.IllegalStateException
 
@@ -15,10 +16,14 @@ dependencies {
 }
 
 val hasXCtrace: Boolean by lazy {
-    exec {
-        commandLine("xctrace", "version")
-        isIgnoreExitValue = true
-    }.exitValue == 0
+    try {
+        exec {
+            commandLine("xctrace", "version")
+            isIgnoreExitValue = true
+        }.exitValue == 0
+    } catch (e: ExecException) {
+        false
+    }
 }
 
 tasks {
