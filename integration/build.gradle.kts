@@ -42,14 +42,14 @@ tasks {
         args("template=CPU Profiler")
     }
     create("runAsmProfWithExplicitTimeProfiler", JavaExec::class.java) {
-        onlyIf { hasXCtrace }
+        onlyIf { hasXCtrace && !project.hasProperty("noTimeProf") }
         dependsOn.add("jmhJar")
         classpath += jmhJar.get().outputs.files
         mainClass = "io.github.fzhinkin.XCTraceAsmProfilerTest"
         args("template=Time Profiler")
     }
     create("runTimestampFiltrationTest", JavaExec::class.java) {
-        onlyIf { hasXCtrace }
+        onlyIf { hasXCtrace && !project.hasProperty("noTimeProf") }
         dependsOn.add("jmhJar")
         classpath += jmhJar.get().outputs.files
         mainClass = "io.github.fzhinkin.TimestampFiltrationTest"

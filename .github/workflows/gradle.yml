@@ -29,7 +29,7 @@ jobs:
     - name: Check with Gradle
       uses: gradle/gradle-build-action@bd5760595778326ba7f1441bcf7e88b49de61a25 # v2.6.0
       with:
-        arguments: -PnoPMU check
+        arguments: -PnoPMU -PnoTimeProf check
 
   check-macos-latest:
     runs-on: macos-13
@@ -43,7 +43,7 @@ jobs:
     - name: Check with Gradle
       uses: gradle/gradle-build-action@bd5760595778326ba7f1441bcf7e88b49de61a25 # v2.6.0
       with:
-        arguments: -PnoPMU check
+        arguments: -PnoPMU -PnoTimeProf check
 
   check-macos-11:
     runs-on: macos-11
@@ -57,4 +57,4 @@ jobs:
     - name: Check with Gradle
       uses: gradle/gradle-build-action@bd5760595778326ba7f1441bcf7e88b49de61a25 # v2.6.0
       with:
-        arguments: -PnoPMU check
+        arguments: -PnoPMU -PnoTimeProf check
