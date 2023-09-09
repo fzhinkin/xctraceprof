@@ -62,6 +62,10 @@ import java.util.List;
  * <p>
  * There's no builtin template that could be used with this profiler, thus the template had to be configured and saved
  * by a user before running the profiler.
+ *
+ * TODO:
+ * - improve temporary directory management
+ * - support other instruments to collect information about virtual memory, context switches, etc.
  */
 public class XCTraceNormProfiler implements ExternalProfiler {
     private static final XCTraceTableDesc.TableType SUPPORTED_TABLE_TYPE = XCTraceTableDesc.TableType.COUNTERS_PROFILE;

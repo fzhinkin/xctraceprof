@@ -60,6 +60,12 @@ import java.util.*;
  * <p>
  * There are several builtin templates, and some of them, namely "Time Profiler" and "CPU Profiler", could be
  * used without any additional setup.
+ *
+ * TODO:
+ * - output file setup looks terrible (xctrace need either path to an existing temporary directory and
+ *   it'll create trace file inside it, or a non-existing path with ".trace" extension); JMH supports only
+ *   temporary files, thus all the mess with perfBinFile.
+ * - profiling results copying does not work, because the base class only supports file copying.
  */
 public class XCTraceAsmProfiler extends AbstractPerfAsmProfiler {
     private final String template;
