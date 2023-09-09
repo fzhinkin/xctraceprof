@@ -1,6 +1,7 @@
 # xctraceprof
-![GitHub](https://img.shields.io/github/license/fzhinkin/xctraceprof)
-![Maven Central](https://img.shields.io/maven-central/v/io.github.fzhinkin/xctraceprof)
+[![GitHub](https://img.shields.io/github/license/fzhinkin/xctraceprof)](LICENSE)
+[![Maven Central](https://img.shields.io/maven-central/v/io.github.fzhinkin/xctraceprof)](https://central.sonatype.com/artifact/io.github.fzhinkin/xctraceprof)
+![Testing](https://github.com/fzhinkin/xctraceprof/actions/workflows/gradle.yml/badge.svg)
 
 JMH profilers based on "xctrace" utility (shipped with XCode Instruments).
 
