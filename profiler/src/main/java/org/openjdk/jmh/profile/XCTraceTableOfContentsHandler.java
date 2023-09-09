@@ -34,6 +34,17 @@ class XCTraceTableOfContentsHandler extends XCTraceHandlerBase {
 
     private long recordStartMs;
 
+    private static List<String> parseEvents(Attributes attributes) {
+        String events = attributes.getValue(XCTraceHandlerBase.PMC_EVENTS);
+        // TODO: support names with whitespaces inside
+        return Arrays.stream(events.split(" ")).map(e -> {
+                    if (!e.startsWith("\"") && !e.endsWith("\"")) return e;
+                    if (e.startsWith("\"") && e.endsWith("\"")) return e.substring(1, e.length() - 1);
+                    throw new IllegalStateException("Can't parse pmc-events: " + events);
+                }).filter(e -> !e.isEmpty())
+                .collect(Collectors.toList());
+    }
+
     public List<XCTraceTableDesc> getSupportedTables() {
         return Collections.unmodifiableList(supportedTables);
     }
@@ -105,16 +116,5 @@ class XCTraceTableOfContentsHandler extends XCTraceHandlerBase {
         XCTraceTableDesc table = new XCTraceTableDesc(XCTraceTableDesc.TableType.COUNTERS_PROFILE, XCTraceTableDesc.TriggerType.TIME,
                 parseEvents(attributes), XCTraceSample.TIME_SAMPLE_TRIGGER_NAME, threshold);
         supportedTables.add(table);
-    }
-
-    private static List<String> parseEvents(Attributes attributes) {
-        String events = attributes.getValue(XCTraceHandlerBase.PMC_EVENTS);
-        // TODO: support names with whitespaces inside
-        return Arrays.stream(events.split(" ")).map(e -> {
-                    if (!e.startsWith("\"") && !e.endsWith("\"")) return e;
-                    if (e.startsWith("\"") && e.endsWith("\"")) return e.substring(1, e.length() - 1);
-                    throw new IllegalStateException("Can't parse pmc-events: " + events);
-                }).filter(e -> !e.isEmpty())
-                .collect(Collectors.toList());
     }
 }

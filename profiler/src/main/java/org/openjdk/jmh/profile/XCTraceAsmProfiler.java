@@ -63,40 +63,14 @@ import java.util.*;
  * used without any additional setup.
  */
 public class XCTraceAsmProfiler extends AbstractPerfAsmProfiler {
+    private final String template;
+    private final boolean shouldFixStartTime;
     private OptionSpec<String> templateOpt;
-
     private OptionSpec<Boolean> correctOpt;
-
-    private String template;
-    private boolean shouldFixStartTime;
-
     private XCTraceTableDesc.TableType resultsTable;
 
     private long recordStartMs = 0;
     private long forkStartTimeMs = 0;
-
-    private static class AddressInterval {
-        private long min;
-        private long max;
-
-        public AddressInterval(long address) {
-            min = address;
-            max = address;
-        }
-
-        void add(long address) {
-            min = Math.min(min, address);
-            max = Math.max(max, address);
-        }
-
-        public long getMin() {
-            return min;
-        }
-
-        public long getMax() {
-            return max;
-        }
-    }
 
     /**
      * Parameterless constructor to allow loading the class via ServiceLoader
@@ -132,7 +106,9 @@ public class XCTraceAsmProfiler extends AbstractPerfAsmProfiler {
                 .withRequiredArg().ofType(Boolean.class).defaultsTo(true);
     }
 
-    private void chooseTable(Path profile) {
+    @Override
+    protected void parseEvents() {
+        Path profile = XCTraceUtils.findTraceFile(perfBinData.file().toPath());
         XCTraceUtils.exportTableOfContents(profile.toAbsolutePath().toString(), perfParsedData.getAbsolutePath());
         XCTraceTableOfContentsHandler handler = new XCTraceTableOfContentsHandler();
         handler.parse(perfParsedData.file());
@@ -146,12 +122,6 @@ public class XCTraceAsmProfiler extends AbstractPerfAsmProfiler {
                     "please specify which one to use using \"table\" option");
         }
         resultsTable = tables.get(0).getTableType();
-    }
-
-    @Override
-    protected void parseEvents() {
-        Path profile = XCTraceUtils.findTraceFile(perfBinData.file().toPath());
-        chooseTable(profile);
         XCTraceUtils.exportTable(profile.toAbsolutePath().toString(), perfParsedData.getAbsolutePath(), resultsTable);
     }
 
@@ -225,7 +195,7 @@ public class XCTraceAsmProfiler extends AbstractPerfAsmProfiler {
                 if (name.isEmpty()) {
                     // TODO
                     name = "[unknown]";
-                    throw new IllegalStateException();
+                    throw new IllegalStateException("Empty binary name");
                 }
                 MethodDesc method = dedup.dedup(MethodDesc.nativeMethod(sample.getSymbol(), name));
 
@@ -262,5 +232,28 @@ public class XCTraceAsmProfiler extends AbstractPerfAsmProfiler {
     @Override
     public String getDescription() {
         return "macOS xctrace (Instruments) + PrintAssembly profiler";
+    }
+
+    private static class AddressInterval {
+        private long min;
+        private long max;
+
+        public AddressInterval(long address) {
+            min = address;
+            max = address;
+        }
+
+        void add(long address) {
+            min = Math.min(min, address);
+            max = Math.max(max, address);
+        }
+
+        public long getMin() {
+            return min;
+        }
+
+        public long getMax() {
+            return max;
+        }
     }
 }

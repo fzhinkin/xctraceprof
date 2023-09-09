@@ -82,7 +82,7 @@ final class XCTraceUtils {
                     .collect(Collectors.toList());
             if (launchFiles.size() != 1) {
                 throw new IllegalStateException("Expected only one launch file, found " +
-                        + launchFiles.size() + ": " + launchFiles);
+                        +launchFiles.size() + ": " + launchFiles);
             }
             return launchFiles.get(0);
         } catch (IOException e) {

@@ -36,6 +36,11 @@ class XCTraceTableHandler extends XCTraceHandlerBase {
 
     private XCTraceSample currentSample = null;
 
+    public XCTraceTableHandler(XCTraceTableDesc.TableType tableType, Consumer<XCTraceSample> onSample) {
+        this.tableType = tableType;
+        callback = onSample;
+    }
+
     private static long parseId(Attributes attributes) {
         return Long.parseLong(attributes.getValue(XCTraceHandlerBase.ID));
     }
@@ -60,12 +65,6 @@ class XCTraceTableHandler extends XCTraceHandlerBase {
 
     private static boolean hasRef(Attributes attributes) {
         return attributes.getValue(XCTraceHandlerBase.REF) != null;
-    }
-
-
-    public XCTraceTableHandler(XCTraceTableDesc.TableType tableType, Consumer<XCTraceSample> onSample) {
-        this.tableType = tableType;
-        callback = onSample;
     }
 
     private <T extends TraceElement> void cache(T e) {

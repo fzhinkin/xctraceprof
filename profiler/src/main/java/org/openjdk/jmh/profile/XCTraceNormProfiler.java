@@ -104,7 +104,7 @@ public class XCTraceNormProfiler implements ExternalProfiler {
                         "Do the collection for a given time, in milliseconds; -1 to detect automatically.")
                 .withRequiredArg().ofType(Integer.class).describedAs("ms").defaultsTo(-1);
         OptionSpec<Boolean> correctOpt = parser.accepts("fixStartTime",
-                         "Fix the start time by the time it took to launch.")
+                        "Fix the start time by the time it took to launch.")
                 .withRequiredArg().ofType(Boolean.class).defaultsTo(true);
 
 
@@ -124,6 +124,19 @@ public class XCTraceNormProfiler implements ExternalProfiler {
         }
     }
 
+    private static XCTraceTableDesc findTableDescription(XCTraceTableOfContentsHandler tocHandler) {
+        XCTraceTableDesc tableDesc = tocHandler.getSupportedTables()
+                .stream()
+                .filter(t -> t.getTableType() == SUPPORTED_TABLE_TYPE)
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("Table \"" + SUPPORTED_TABLE_TYPE.tableName +
+                        "\" was not found in the trace results."));
+        if (tableDesc.counters().isEmpty() && tableDesc.getTriggerType() == XCTraceTableDesc.TriggerType.TIME) {
+            throw new IllegalStateException("Results does not contain any events.");
+        }
+        return tableDesc;
+    }
+
     @Override
     public Collection<String> addJVMInvokeOptions(BenchmarkParams params) {
         return XCTraceUtils.recordCommandPrefix(temporaryFolder.toAbsolutePath().toString(), tracingTemplate);
@@ -139,19 +152,6 @@ public class XCTraceNormProfiler implements ExternalProfiler {
         if (!temporaryFolder.toFile().isDirectory() && !temporaryFolder.toFile().mkdirs()) {
             throw new IllegalStateException();
         }
-    }
-
-    private static XCTraceTableDesc findTableDescription(XCTraceTableOfContentsHandler tocHandler) {
-        XCTraceTableDesc tableDesc = tocHandler.getSupportedTables()
-                .stream()
-                .filter(t -> t.getTableType() == SUPPORTED_TABLE_TYPE)
-                .findFirst()
-                .orElseThrow(() -> new IllegalStateException("Table \"" + SUPPORTED_TABLE_TYPE.tableName +
-                        "\" was not found in the trace results."));
-        if (tableDesc.counters().isEmpty() && tableDesc.getTriggerType() == XCTraceTableDesc.TriggerType.TIME) {
-            throw new IllegalStateException("Results does not contain any events.");
-        }
-        return tableDesc;
     }
 
     @Override

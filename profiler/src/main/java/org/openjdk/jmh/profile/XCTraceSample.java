@@ -25,13 +25,9 @@ class XCTraceSample {
 
     private long timeFromStartNs = 0;
     private long weight = 0;
-
     private String symbol = null;
-
     private long address = 0;
-
     private String binary = null;
-
     private long[] samples = EMPTY;
 
     public void setTopFrame(long address, String symbol, String binary) {
