@@ -21,6 +21,7 @@ package io.github.fzhinkin;
 
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.profile.XCTraceAsmProfiler;
+import org.openjdk.jmh.results.Result;
 import org.openjdk.jmh.results.RunResult;
 import org.openjdk.jmh.runner.Runner;
 import org.openjdk.jmh.runner.options.Options;
@@ -30,9 +31,9 @@ import java.util.Collection;
 
 @Fork(2)
 @BenchmarkMode(Mode.Throughput)
-@Warmup(iterations = 2, time = 10)
+@Warmup(iterations = 1, time = 5)
 @Measurement(iterations = 1, time = 10)
-public class SampleBenchmark {
+public class XCTraceAsmProfilerTest {
     private static final double pi = Math.PI;
 
     @Benchmark
@@ -50,12 +51,16 @@ public class SampleBenchmark {
 
     private static void run(String initLine) throws Exception {
         Options opt = new OptionsBuilder()
-                .include(SampleBenchmark.class.getSimpleName())
+                .include(XCTraceAsmProfilerTest.class.getSimpleName())
                 .addProfiler(XCTraceAsmProfiler.class, initLine)
                 .build();
         Collection<RunResult> result = new Runner(opt).run();
         if (result.size() != 1) {
             throw new IllegalStateException("Expected 1 result, got " + result.size());
+        }
+        Result<?> asm = result.iterator().next().getSecondaryResults().get("asm");
+        if (TestUtils.getEvents(asm.extendedInfo()) < 1000) {
+            throw new IllegalStateException("Failed");
         }
     }
 }

@@ -1,0 +1,9 @@
+#!/bin/sh
+
+# Wrapper aimed to check that profilers use corrected timestamps from the trace file.
+export PATH=$(echo $PATH | sed -e "s@"$(dirname $0)":@@g")
+if [[ "$1" -eq "record" ]]; then
+  echo "Sleeping for 15s..."
+  sleep 15
+fi
+xctrace "$@"

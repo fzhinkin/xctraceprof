@@ -65,11 +65,13 @@ import java.util.List;
  */
 public class XCTraceNormProfiler implements ExternalProfiler {
     private static final XCTraceTableDesc.TableType SUPPORTED_TABLE_TYPE = XCTraceTableDesc.TableType.COUNTERS_PROFILE;
-    private final String template;
-
+    private final String tracingTemplate;
     private final Path temporaryFolder;
-
     private final TempFile outputFile;
+
+    private final long delayMs;
+    private final long lengthMs;
+    private final boolean shouldFixStartTime;
 
     /**
      * Parameterless constructor to allow loading the class via ServiceLoader
@@ -79,27 +81,40 @@ public class XCTraceNormProfiler implements ExternalProfiler {
      * Without it, -lprof will fail on machines where xctrace is unavailable.
      */
     public XCTraceNormProfiler() {
-        template = "";
+        tracingTemplate = "";
         temporaryFolder = null;
         outputFile = null;
+        delayMs = -1;
+        lengthMs = -1;
+        shouldFixStartTime = true;
     }
 
     public XCTraceNormProfiler(String initLine) throws ProfilerException {
         OptionParser parser = new OptionParser();
         parser.formatHelpWith(new ProfilerOptionFormatter(XCTraceNormProfiler.class.getName()));
 
-        OptionSpec<String> templateOpt = parser.accepts("template",
-                        "Name of or path to Instruments template. " +
-                                "Use `xctrace list templates` to view available templates. " +
-                                "Only templates with \"CPU Counters\" instrument are supported at the moment.")
+        OptionSpec<String> templateOpt = parser.accepts("template", "Name of or path to Instruments template. " +
+                        "Use `xctrace list templates` to view available templates. " +
+                        "Only templates with \"CPU Counters\" instrument are supported at the moment.")
                 .withRequiredArg().ofType(String.class);
+        OptionSpec<Integer> optDelay = parser.accepts("delay",
+                        "Delay collection for a given time, in milliseconds; -1 to detect automatically.")
+                .withRequiredArg().ofType(Integer.class).describedAs("ms").defaultsTo(-1);
+        OptionSpec<Integer> optLength = parser.accepts("length",
+                        "Do the collection for a given time, in milliseconds; -1 to detect automatically.")
+                .withRequiredArg().ofType(Integer.class).describedAs("ms").defaultsTo(-1);
+        OptionSpec<Boolean> correctOpt = parser.accepts("fixStartTime",
+                         "Fix the start time by the time it took to launch.")
+                .withRequiredArg().ofType(Boolean.class).defaultsTo(true);
+
 
         OptionSet options = ProfilerUtils.parseInitLine(initLine, parser);
-        template = options.valueOf(templateOpt);
+        tracingTemplate = options.valueOf(templateOpt);
+        delayMs = options.valueOf(optDelay);
+        lengthMs = options.valueOf(optLength);
+        shouldFixStartTime = options.valueOf(correctOpt);
 
         XCTraceUtils.checkXCTraceWorks();
-
-        // TODO: check template exists
 
         try {
             temporaryFolder = Files.createTempDirectory("xctrace-run");
@@ -111,7 +126,7 @@ public class XCTraceNormProfiler implements ExternalProfiler {
 
     @Override
     public Collection<String> addJVMInvokeOptions(BenchmarkParams params) {
-        return XCTraceUtils.recordCommandPrefix(temporaryFolder.toAbsolutePath().toString(), template);
+        return XCTraceUtils.recordCommandPrefix(temporaryFolder.toAbsolutePath().toString(), tracingTemplate);
     }
 
     @Override
@@ -126,7 +141,7 @@ public class XCTraceNormProfiler implements ExternalProfiler {
         }
     }
 
-    private XCTraceTableDesc findTableDescription(XCTraceTableOfContentsHandler tocHandler) {
+    private static XCTraceTableDesc findTableDescription(XCTraceTableOfContentsHandler tocHandler) {
         XCTraceTableDesc tableDesc = tocHandler.getSupportedTables()
                 .stream()
                 .filter(t -> t.getTableType() == SUPPORTED_TABLE_TYPE)
@@ -160,10 +175,39 @@ public class XCTraceNormProfiler implements ExternalProfiler {
         XCTraceUtils.exportTable(traceFile.toAbsolutePath().toString(), outputFile.getAbsolutePath(),
                 SUPPORTED_TABLE_TYPE);
 
-        // TODO: describe what is going on
-        long startupDelayMs = tocHandler.getRecordStartMs() - md.getStartTime();
-        long skipNs = (ProfilerUtils.measurementDelayMs(br) - startupDelayMs) * 1000000;
-        long durationNs = ProfilerUtils.measuredTimeMs(br) * 1000000;
+        /*
+         * BenchmarkResultMetaData captures the time when a fork was launched.
+         * xctrace saves timestamps relative to the start of the tracing process.
+         * It may take a considerable time to start xctrace (up to several seconds in some cases), so we
+         * can't directly use measurementDelayMs.
+         * However, xctrace trace's table of contents contains the timestamp corresponding to
+         * the actual traced process start time. It could be used to correct measurementDelayMs.
+         *
+         *               /<-- delta -->/
+         *              /             /
+         *  time -------|-------------|------------------------------|----------->
+         *              |             |                              |
+         *       *fork launched*      |                     *measurements started*
+         *        getStartTime()      |                      getMeasurementTime()
+         *                      xctrace started java
+         *                    tocHandler.getRecordStartMs()
+         */
+        long timeCorrectionMs = 0;
+        if (shouldFixStartTime) {
+            timeCorrectionMs = tocHandler.getRecordStartMs() - md.getStartTime();
+        }
+        long skipMs = delayMs;
+        if (skipMs == -1L) {
+            skipMs = ProfilerUtils.measurementDelayMs(br);
+        }
+        skipMs -= timeCorrectionMs;
+        long durationMs = lengthMs;
+        if (durationMs == -1L) {
+            durationMs = ProfilerUtils.measuredTimeMs(br);
+        }
+
+        long skipNs = skipMs * 1000000;
+        long durationNs = durationMs * 1000000;
 
         AggregatedEvents aggregator = new AggregatedEvents(tableDesc);
         new XCTraceTableHandler(SUPPORTED_TABLE_TYPE, sample -> {
@@ -244,7 +288,7 @@ public class XCTraceNormProfiler implements ExternalProfiler {
             if (maxTimestampMs == minTimestampMs) {
                 throw new IllegalStateException("Min and max timestamps are the same.");
             }
-            double timeSpanMs =  (maxTimestampMs - minTimestampMs) / 1e6;
+            double timeSpanMs = (maxTimestampMs - minTimestampMs) / 1e6;
             for (int i = 0; i < eventValues.length; i++) {
                 eventValues[i] = eventValues[i] / timeSpanMs / throughput;
             }

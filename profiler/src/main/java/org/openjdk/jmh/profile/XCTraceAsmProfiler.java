@@ -24,13 +24,10 @@ import joptsimple.OptionParser;
 import joptsimple.OptionSpec;
 import org.openjdk.jmh.infra.BenchmarkParams;
 import org.openjdk.jmh.results.BenchmarkResult;
+import org.openjdk.jmh.results.BenchmarkResultMetaData;
 import org.openjdk.jmh.results.Result;
 import org.openjdk.jmh.util.*;
-import org.xml.sax.SAXException;
 
-import javax.xml.parsers.ParserConfigurationException;
-import javax.xml.parsers.SAXParser;
-import javax.xml.parsers.SAXParserFactory;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -68,12 +65,15 @@ import java.util.*;
 public class XCTraceAsmProfiler extends AbstractPerfAsmProfiler {
     private OptionSpec<String> templateOpt;
 
-    private OptionSpec<String> tableOpt;
+    private OptionSpec<Boolean> correctOpt;
 
-    private final String template;
-    private final XCTraceTableDesc.TableType tableType;
+    private String template;
+    private boolean shouldFixStartTime;
 
-    private XCTraceTableDesc.TableType foundTable;
+    private XCTraceTableDesc.TableType resultsTable;
+
+    private long recordStartMs = 0;
+    private long forkStartTimeMs = 0;
 
     private static class AddressInterval {
         private long min;
@@ -108,7 +108,7 @@ public class XCTraceAsmProfiler extends AbstractPerfAsmProfiler {
     public XCTraceAsmProfiler() throws ProfilerException {
         super("");
         template = "";
-        tableType = XCTraceTableDesc.TableType.COUNTERS_PROFILE;
+        shouldFixStartTime = true;
     }
 
     public XCTraceAsmProfiler(String initLine) throws ProfilerException {
@@ -116,16 +116,8 @@ public class XCTraceAsmProfiler extends AbstractPerfAsmProfiler {
         XCTraceUtils.checkXCTraceWorks();
         try {
             template = set.valueOf(templateOpt);
+            shouldFixStartTime = set.valueOf(correctOpt);
         } catch (OptionException e) {
-            throw new ProfilerException(e.getMessage());
-        }
-        try {
-            if (set.valueOf(tableOpt) == null) {
-                tableType = null;
-            } else {
-                tableType = XCTraceTableDesc.TableType.valueOf(set.valueOf(tableOpt));
-            }
-        } catch (IllegalArgumentException e) {
             throw new ProfilerException(e.getMessage());
         }
         perfBinData.delete();
@@ -133,41 +125,34 @@ public class XCTraceAsmProfiler extends AbstractPerfAsmProfiler {
 
     @Override
     protected void addMyOptions(OptionParser parser) {
-        templateOpt = parser.accepts("template",
-                        "Path to or name of an Instruments template. " +
-                                "Use `xctrace list templates` to view available templates.")
+        templateOpt = parser.accepts("template", "Path to or name of an Instruments template. " +
+                        "Use `xctrace list templates` to view available templates.")
                 .withOptionalArg().ofType(String.class).defaultsTo("CPU Profiler");
-        tableOpt = parser.accepts("table", "Name of the output table.")
-                .withOptionalArg().ofType(String.class);
+        correctOpt = parser.accepts("fixStartTime", "Fix the start time by the time it took to launch.")
+                .withRequiredArg().ofType(Boolean.class).defaultsTo(true);
     }
 
-    private XCTraceTableDesc.TableType chooseTable(Path profile) {
+    private void chooseTable(Path profile) {
         XCTraceUtils.exportTableOfContents(profile.toAbsolutePath().toString(), perfParsedData.getAbsolutePath());
         XCTraceTableOfContentsHandler handler = new XCTraceTableOfContentsHandler();
         handler.parse(perfParsedData.file());
+        recordStartMs = handler.getRecordStartMs();
         List<XCTraceTableDesc> tables = handler.getSupportedTables();
         if (tables.isEmpty()) {
             throw new IllegalStateException("Profiling results does not contain table supported by this profiler.");
-        }
-        if (tableType != null) {
-            return tables.stream()
-                    .filter(t -> t.getTableType() == tableType)
-                    .findFirst()
-                    .orElseThrow(() -> new IllegalStateException("Results table not found: " + tableType.tableName))
-                    .getTableType();
         }
         if (tables.size() != 1) {
             throw new IllegalStateException("There are multiple supported tables in output, " +
                     "please specify which one to use using \"table\" option");
         }
-        return tables.get(0).getTableType();
+        resultsTable = tables.get(0).getTableType();
     }
 
     @Override
     protected void parseEvents() {
         Path profile = XCTraceUtils.findTraceFile(perfBinData.file().toPath());
-        foundTable = chooseTable(profile);
-        XCTraceUtils.exportTable(profile.toAbsolutePath().toString(), perfParsedData.getAbsolutePath(), foundTable);
+        chooseTable(profile);
+        XCTraceUtils.exportTable(profile.toAbsolutePath().toString(), perfParsedData.getAbsolutePath(), resultsTable);
     }
 
     @Override
@@ -180,6 +165,10 @@ public class XCTraceAsmProfiler extends AbstractPerfAsmProfiler {
 
     @Override
     public Collection<? extends Result> afterTrial(BenchmarkResult br, long pid, File stdOut, File stdErr) {
+        BenchmarkResultMetaData md = br.getMetadata();
+        if (md != null) {
+            forkStartTimeMs = md.getStartTime();
+        }
         Collection<? extends Result> results = super.afterTrial(br, pid, stdOut, stdErr);
         try {
             TempFileUtils.removeDirectory(perfBinData.file().toPath());
@@ -196,15 +185,35 @@ public class XCTraceAsmProfiler extends AbstractPerfAsmProfiler {
         Map<MethodDesc, AddressInterval> methods = new HashMap<>();
         Multiset<Long> events = new TreeMultiset<>();
 
-        double endTimeMs = skipMs + lenMs;
-        XCTraceTableHandler handler = new XCTraceTableHandler(foundTable, sample -> {
-            // TODO: test
-            double sampleTimeMs = sample.getTimeFromStartNs() / 1e6;
-            if (sampleTimeMs < skipMs || sampleTimeMs >= endTimeMs) {
+        /*
+         * BenchmarkResultMetaData captures the time when a fork was launched.
+         * xctrace saves timestamps relative to the start of the tracing process.
+         * It may take a considerable time to start xctrace (up to several seconds in some cases), so we
+         * can't directly use measurementDelayMs.
+         * However, xctrace trace's table of contents contains the timestamp corresponding to
+         * the actual traced process start time. It could be used to correct measurementDelayMs.
+         *
+         *               /<-- delta -->/
+         *              /             /
+         *  time -------|-------------|------------------------------|----------->
+         *              |             |                              |
+         *       *fork launched*      |                     *measurements started*
+         *        getStartTime()      |                      getMeasurementTime()
+         *                      xctrace started java
+         *                    tocHandler.getRecordStartMs()
+         */
+        long timeCorrectionMs = 0;
+        if (shouldFixStartTime) {
+            timeCorrectionMs = recordStartMs - forkStartTimeMs;
+        }
+
+        double correctedSkipNs = (skipMs - timeCorrectionMs) * 1e6;
+        double endTimeNs = correctedSkipNs + lenMs * 1e6;
+        XCTraceTableHandler handler = new XCTraceTableHandler(resultsTable, sample -> {
+            double sampleTimeNs = sample.getTimeFromStartNs();
+            if (sampleTimeNs < correctedSkipNs || sampleTimeNs >= endTimeNs) {
                 return;
             }
-
-            // TODO: always check only the add
             if (sample.getAddress() == 0L) {
                 return;
             }
@@ -229,17 +238,10 @@ public class XCTraceAsmProfiler extends AbstractPerfAsmProfiler {
                 });
             }
         });
-        try {
-            SAXParser parser = SAXParserFactory.newInstance().newSAXParser();
-            parser.parse(perfParsedData.file(), handler);
-        } catch (ParserConfigurationException | SAXException | IOException e) {
-            throw new IllegalStateException(e);
-        }
+        handler.parse(perfParsedData.file());
 
         IntervalMap<MethodDesc> methodMap = new IntervalMap<>();
-        methods.forEach((method, addresses) -> {
-            methodMap.add(method, addresses.getMin(), addresses.getMax());
-        });
+        methods.forEach((method, addresses) -> methodMap.add(method, addresses.getMin(), addresses.getMax()));
 
         Map<String, Multiset<Long>> allEvents = new TreeMap<>();
         assert requestedEventNames.size() == 1;
