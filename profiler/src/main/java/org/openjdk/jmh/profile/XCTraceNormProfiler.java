@@ -65,6 +65,12 @@ import java.util.List;
  */
 public class XCTraceNormProfiler implements ExternalProfiler {
     private static final XCTraceTableDesc.TableType SUPPORTED_TABLE_TYPE = XCTraceTableDesc.TableType.COUNTERS_PROFILE;
+    // Counter names may vary depending on particular CPU,
+    // but these names are the most popular (see files in /usr/share/kpep).
+    // On Arm-based CPUs names (in fact, aliases) are usually Instructions and Cycles,
+    // on x86-64 CPUs names are usually INST_ALL and ReferenceCycles.
+    private static final String[] INSTRUCTIONS_COUNTERS = new String[]{"Instructions", "INST_ALL"};
+    private static final String[] CYCLES_COUNTERS = new String[]{"Cycles", "ReferenceCycles", "CORE_ACTIVE_CYCLE"};
     private final String tracingTemplate;
     private final Path temporaryFolder;
     private final TempFile outputFile;
@@ -229,9 +235,35 @@ public class XCTraceNormProfiler implements ExternalProfiler {
         if (aggregator.eventsCount == 0) {
             return Collections.emptyList();
         }
-        aggregator.normalizeByThroughput(opsThroughput);
 
         Collection<Result<?>> results = new ArrayList<>();
+        {
+            Double insts = null;
+            String instsName = null;
+            for (String name : INSTRUCTIONS_COUNTERS) {
+                if ((insts = aggregator.getCountOrNull(name)) != null) {
+                    instsName = name;
+                    break;
+                }
+            }
+            Double cycles = null;
+            String cyclesName = null;
+            for (String name : CYCLES_COUNTERS) {
+                if ((cycles = aggregator.getCountOrNull(name)) != null) {
+                    cyclesName = name;
+                    break;
+                }
+            }
+            if (insts != null && cycles != null && insts != 0.0 && cycles != 0.0) {
+                results.add(new ScalarResult("CPI", cycles / insts,
+                        cyclesName + "/" + instsName, AggregationPolicy.AVG));
+                results.add(new ScalarResult("IPC", insts / cycles,
+                        instsName + "/" + cyclesName, AggregationPolicy.AVG));
+            }
+        }
+
+        aggregator.normalizeByThroughput(opsThroughput);
+
         for (int i = 0; i < tableDesc.counters().size(); i++) {
             String event = tableDesc.counters().get(i);
             results.add(new ScalarResult(event, aggregator.eventValues[i],
@@ -294,6 +326,12 @@ public class XCTraceNormProfiler implements ExternalProfiler {
             for (int i = 0; i < eventValues.length; i++) {
                 eventValues[i] = eventValues[i] / timeSpanMs / throughput;
             }
+        }
+
+        Double getCountOrNull(String event) {
+            int idx = eventNames.indexOf(event);
+            if (idx == -1) return null;
+            return eventValues[idx];
         }
     }
 }
