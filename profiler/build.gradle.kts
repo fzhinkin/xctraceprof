@@ -38,7 +38,7 @@ publishing {
 
             pom {
                 name.set("XCTrace JMH profilers")
-                description.set("Collection of JHM profilers using XCode Instruments as the underlying profiler.")
+                description.set("Collection of JMH profilers using XCode Instruments as the underlying profiler.")
                 url.set("https://github.com/fzhinkin/xctraceprof")
                 licenses {
                     license {
@@ -84,8 +84,3 @@ publishing {
         }
     }
 }
-//
-//signing {
-//    sign(publishing.publications["maven"])
-//}
-
